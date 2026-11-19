@@ -6,6 +6,9 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 const crypto = require("crypto");
+// Turnstile 測試用的假回應（真的 token 是幾百字元，後端會先檢查長度）
+const TS_PASS = "PASS".padEnd(40, "x");
+const TS_FAIL = "FAIL".padEnd(40, "x");
 const code = fs.readFileSync(process.argv[2] || path.join(__dirname, "..", "apps-script", "Code.gs"), "utf8");
 
 function makeEnv(props) {
@@ -20,8 +23,10 @@ function makeEnv(props) {
     Logger: { log: (s) => env.__logs.push(String(s)) },
     __logs: [],
     __tsHost: "sakurasnow-0w0.github.io",
+    __lockOk: true,
+    __ghStatus: 0,
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, String(v)), remove: (k) => cache.delete(k) }) },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock: () => {}, releaseLock: () => {} }) },
+    LockService: { getScriptLock: () => ({ tryLock: () => env.__lockOk, waitLock: () => {}, releaseLock: () => {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (props[k] == null ? null : props[k]) }) },
     Utilities: {
       DigestAlgorithm: { SHA_256: "sha256" },
@@ -39,9 +44,10 @@ function makeEnv(props) {
       fetch: (url, opts) => {
         fetchLog.push({ url, method: (opts && opts.method) || "get" });
         if (/challenges\.cloudflare\.com\/turnstile\/v0\/siteverify$/.test(url)) {
-          const ok = opts.payload.secret === props.TURNSTILE_SECRET && opts.payload.response === "PASS";
+          const ok = opts.payload.secret === props.TURNSTILE_SECRET && opts.payload.response === TS_PASS;
           return resp(200, ok ? { success: true, hostname: env.__tsHost } : { success: false, "error-codes": ["invalid-input-response"] });
         }
+        if (env.__ghStatus && /api\.github\.com/.test(url)) return resp(env.__ghStatus, { message: "GitHub down" });
         if (/api\.github\.com\/repos\/[^/]+\/[^/]+$/.test(url) && opts.headers.Authorization !== "Bearer GOODTOKEN_xxxxxxxxxxxxxxxx") return resp(401, { message: "Bad credentials" });
         if (/contents\/data\/samples\//.test(url) && opts.method === "put") return resp(ghPutStatus, { content: { sha: "a".repeat(40) } });
         if (/\/user$/.test(url)) return resp(200, { login: "dev" });
@@ -202,7 +208,7 @@ console.log("T Turnstile 登入與通行證");
   check("沒開 Turnstile：直接帶通關碼照常可用", post(env0, { action: "ping", code: "lip2026" }).ok === true);
   const l0 = post(env0, { action: "login", code: "lip2026", name: "小明" });
   check("沒開 Turnstile：login 也能拿到通行證", l0.ok === true && /^[0-9a-f]{64}$/.test(l0.session), l0);
-  check("doGet 回報 version 5.1、turnstile=false", env0.doGet().version === 5.1 && env0.doGet().turnstile === false);
+  check("doGet 回報 version 5.2、turnstile=false", env0.doGet().version === 5.2 && env0.doGet().turnstile === false);
 
   const env = makeEnv({ TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET", ROOT_FOLDER_ID: "ROOTFOLDERID" });
   check("doGet 回報 turnstile=true", env.doGet().turnstile === true);
@@ -210,12 +216,12 @@ console.log("T Turnstile 登入與通行證");
   check("開了 Turnstile：直接帶通關碼 → LOGIN_REQUIRED", direct.ok === false && direct.code === "LOGIN_REQUIRED", direct);
   check("開了 Turnstile：直接帶管理員密碼也擋", post(env, { action: "ping", adminCode: STRONG + "X" }).code === "LOGIN_REQUIRED");
   check("沒做人機驗證就登入被拒", /人機驗證/.test(post(env, { action: "login", code: "lip2026" }).error));
-  check("人機驗證沒通過被拒", /沒有通過/.test(post(env, { action: "login", code: "lip2026", turnstile: "FAIL" }).error));
-  check("通過驗證但通關碼錯被拒", /通關碼錯誤/.test(post(env, { action: "login", code: "nope", turnstile: "PASS" }).error));
+  check("人機驗證沒通過被拒", /沒有通過/.test(post(env, { action: "login", code: "lip2026", turnstile: TS_FAIL }).error));
+  check("通過驗證但通關碼錯被拒", /通關碼錯誤/.test(post(env, { action: "login", code: "nope", turnstile: TS_PASS }).error));
   env.__tsHost = "evil.example.com";
-  check("驗證來自別的網域被拒", /來源不正確/.test(post(env, { action: "login", code: "lip2026", turnstile: "PASS" }).error));
+  check("驗證來自別的網域被拒", /來源不正確/.test(post(env, { action: "login", code: "lip2026", turnstile: TS_PASS }).error));
   env.__tsHost = "sakurasnow-0w0.github.io";
-  const login = post(env, { action: "login", code: "lip2026", name: "小明", turnstile: "PASS" });
+  const login = post(env, { action: "login", code: "lip2026", name: "小明", turnstile: TS_PASS });
   check("通過驗證＋通關碼正確 → 拿到通行證", login.ok === true && /^[0-9a-f]{64}$/.test(login.session) && login.role === "team" && login.expiresIn === 21600, login);
   check("快取只存通行證的雜湊，不存原文", ![...env.__cache.keys()].some((k) => k.includes(login.session)));
   check("用通行證可以操作", post(env, { action: "ping", session: login.session }).ok === true);
@@ -228,8 +234,8 @@ console.log("T Turnstile 登入與通行證");
   const bogus = post(env, { action: "ping", session: "f".repeat(64) });
   check("不存在的通行證 → SESSION_EXPIRED", bogus.code === "SESSION_EXPIRED", bogus);
   check("格式不對的通行證 → SESSION_EXPIRED", post(env, { action: "ping", session: "../x" }).code === "SESSION_EXPIRED");
-  check("錯的管理員密碼登入被拒", /管理員密碼錯誤/.test(post(env, { action: "login", code: "lip2026", adminCode: "nope", turnstile: "PASS" }).error));
-  const adm = post(env, { action: "login", code: "lip2026", adminCode: STRONG + "X", name: "雪", turnstile: "PASS" });
+  check("錯的管理員密碼登入被拒", /管理員密碼錯誤/.test(post(env, { action: "login", code: "lip2026", adminCode: "nope", turnstile: TS_PASS }).error));
+  const adm = post(env, { action: "login", code: "lip2026", adminCode: STRONG + "X", name: "雪", turnstile: TS_PASS });
   check("管理員登入 → role=admin", adm.ok === true && adm.role === "admin" && adm.name === "管理員：雪", adm);
   check("管理員通行證可以通過刪除權限檢查", !/管理員/.test(String(post(env, { action: "trash", session: adm.session, id: "FILEabcdef123456" }).error || "")));
   check("登出成功", post(env, { action: "logout", session: login.session }).ok === true);
@@ -238,14 +244,14 @@ console.log("T Turnstile 登入與通行證");
   check("登出亂傳東西不會出錯", post(env, { action: "logout", session: { x: 1 } }).ok === true);
   const env2 = makeEnv({ TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET", TURNSTILE_HOSTNAMES: "a.test, b.test" });
   env2.__tsHost = "b.test";
-  check("TURNSTILE_HOSTNAMES 可設多個網域", post(env2, { action: "login", code: "lip2026", turnstile: "PASS" }).ok === true);
+  check("TURNSTILE_HOSTNAMES 可設多個網域", post(env2, { action: "login", code: "lip2026", turnstile: TS_PASS }).ok === true);
   { const r = post(env, { action: "ping", token: "GOODTOKEN_xxxxxxxxxxxxxxxx" }); check("開發者 token 不受 Turnstile 影響", r.ok === true, r); }
   // S1：換通關碼後，舊通行證立刻失效
   {
     const props = { TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET", ROOT_FOLDER_ID: "ROOTFOLDERID" };
     const e = makeEnv(props);
-    const t1 = post(e, { action: "login", code: "lip2026", name: "甲", turnstile: "PASS" }).session;
-    const a1 = post(e, { action: "login", code: "lip2026", adminCode: STRONG + "X", name: "雪", turnstile: "PASS" }).session;
+    const t1 = post(e, { action: "login", code: "lip2026", name: "甲", turnstile: TS_PASS }).session;
+    const a1 = post(e, { action: "login", code: "lip2026", adminCode: STRONG + "X", name: "雪", turnstile: TS_PASS }).session;
     check("S1：快取裡沒有通關碼原文", ![...e.__cache.values()].some((v) => String(v).includes("lip2026") || String(v).includes(STRONG)));
     props.ADMIN_CODE = STRONG + "Y";
     check("S1：換管理員密碼 → 管理員通行證失效", post(e, { action: "ping", session: a1 }).code === "SESSION_EXPIRED");
@@ -254,19 +260,70 @@ console.log("T Turnstile 登入與通行證");
     const r = post(e, { action: "ping", session: t1 });
     check("S1：換團隊通關碼 → 團隊通行證失效", r.code === "SESSION_EXPIRED" && /通關碼已更換/.test(r.error), r);
     check("S1：失效的通行證從快取移除", post(e, { action: "ping", session: t1 }).error === "登入已過期，請重新登入");
-    check("S1：舊通關碼無法重新登入", /通關碼錯誤/.test(post(e, { action: "login", code: "lip2026", turnstile: "PASS" }).error));
-    const t2 = post(e, { action: "login", code: "new2026", turnstile: "PASS" }).session;
+    check("S1：舊通關碼無法重新登入", /通關碼錯誤/.test(post(e, { action: "login", code: "lip2026", turnstile: TS_PASS }).error));
+    const t2 = post(e, { action: "login", code: "new2026", turnstile: TS_PASS }).session;
     check("S1：新通關碼登入後可用", post(e, { action: "ping", session: t2 }).ok === true);
     e.__cache.set([...e.__cache.keys()].find((k) => k.startsWith("sess_")), JSON.stringify({ role: "team", name: "舊版" }));
     check("S1：沒有指紋的舊版通行證視為過期", [...e.__cache.keys()].some((k) => k.startsWith("sess_")) && post(e, { action: "ping", session: t2 }).code === "SESSION_EXPIRED");
   }
   let n = 0;
-  for (let i = 0; i < 70; i++) if (/太頻繁|太多/.test(String(post(env2, { action: "login", code: "x", turnstile: "FAIL" }).error))) n++;
+  for (let i = 0; i < 260; i++) if (/太頻繁|太多/.test(String(post(env2, { action: "login", code: "x", turnstile: TS_FAIL }).error))) n++;
   check("登入每分鐘有上限", n > 0, n);
   const env3 = makeEnv({ TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET" });
   env3.__cache.set("rated_login_20261119-120000", "2000");
   const before = env3.__fetchLog.length;
-  check("登入每日上限用完後被拒，而且不再連 Cloudflare", /今天/.test(String(post(env3, { action: "login", code: "lip2026", turnstile: "PASS" }).error)) && env3.__fetchLog.length === before);
+  check("登入每日上限用完後被拒，而且不再連 Cloudflare", /今天/.test(String(post(env3, { action: "login", code: "lip2026", turnstile: TS_PASS }).error)) && env3.__fetchLog.length === before);
+}
+
+console.log("N1 空的登入請求不佔登入名額");
+{
+  const env = makeEnv({ TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET" });
+  for (let i = 0; i < 500; i++) post(env, { action: "login" });
+  for (let i = 0; i < 500; i++) post(env, { action: "login", code: "x", turnstile: "short" });
+  check("1,000 個空／格式不對的登入請求後，正常的人仍可登入", post(env, { action: "login", code: "lip2026", turnstile: TS_PASS }).ok === true);
+  check("格式不對的請求完全沒有連 Cloudflare", env.__fetchLog.filter((f) => /cloudflare/.test(f.url)).length === 1, env.__fetchLog.length);
+  check("格式不對的請求沒有計入每日名額", Number(env.__cache.get([...env.__cache.keys()].find((k) => k.startsWith("rated_login_")))) === 1);
+}
+
+console.log("N2 假 token 不會擋住正在使用的開發者");
+{
+  const env = makeEnv({ TEAM_CODE: STRONG, ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", ROOT_FOLDER_ID: "ROOTFOLDERID" });
+  const good = "GOODTOKEN_xxxxxxxxxxxxxxxx";
+  check("開發者先正常登入", post(env, { action: "ping", token: good }).ok === true);
+  for (let i = 0; i < 40; i++) post(env, { action: "ping", token: "bad" + i + "x".repeat(30) });
+  check("假 token 被擋（嘗試太多次）", /嘗試太多次/.test(post(env, { action: "ping", token: "bad999" + "x".repeat(30) }).error));
+  check("驗證過的開發者 token 照常可用", post(env, { action: "ping", token: good }).ok === true);
+}
+
+console.log("N3 鎖忙碌時拒絕，不放行");
+{
+  const env = makeEnv({ TEAM_CODE: STRONG, ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", ROOT_FOLDER_ID: "ROOTFOLDERID" });
+  env.__lockOk = false;
+  const r = post(env, { action: "upload", code: STRONG, label: "喝水", data: mp4, ext: "mp4" });
+  check("拿不到鎖時上傳被拒（系統忙碌）", r.ok === false && /忙碌/.test(r.error), r);
+  check("拿不到鎖時讀取被拒", /忙碌/.test(String(post(env, { action: "list", code: STRONG }).error)));
+  env.__lockOk = true;
+  check("鎖恢復後照常可用", post(env, { action: "upload", code: STRONG, label: "喝水", data: mp4, ext: "mp4" }).ok === true);
+}
+
+console.log("N4 存樣本被限流時，剛上傳的影片也會清掉");
+{
+  const env = makeEnv({ TEAM_CODE: STRONG, ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", ROOT_FOLDER_ID: "ROOTFOLDERID" });
+  const up = post(env, { action: "upload", code: STRONG, label: "喝水", data: mp4, ext: "mp4" });
+  env.__cache.set("rate_save_" + Math.floor(Date.now() / 60000), "999");
+  const r = post(env, { action: "saveSample", code: STRONG, sample: sample({ video: { name: "x", driveId: up.id } }) });
+  check("限流時存樣本被拒", r.ok === false && /太多/.test(r.error), r);
+  check("限流被拒時，剛上傳的影片被丟進垃圾桶", env.__trashed.includes(up.id));
+}
+
+console.log("N5 GitHub 暫時出錯不會把 token 鎖 10 分鐘");
+{
+  const env = makeEnv({ TEAM_CODE: STRONG, ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", ROOT_FOLDER_ID: "ROOTFOLDERID" });
+  env.__ghStatus = 502;
+  const r = post(env, { action: "ping", token: "GOODTOKEN_xxxxxxxxxxxxxxxx" });
+  check("GitHub 502 時回「暫時連不上」", /暫時連不上/.test(String(r.error)), r);
+  env.__ghStatus = 0;
+  check("GitHub 恢復後同一個 token 馬上可用", post(env, { action: "ping", token: "GOODTOKEN_xxxxxxxxxxxxxxxx" }).ok === true);
 }
 
 console.log(`\n結果：${pass} 通過，${fail} 失敗`);
