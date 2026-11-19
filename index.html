@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f3eee5">
+<meta name="theme-color" content="#f4f6f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17212a" media="(prefers-color-scheme: dark)">
 <title>錄影｜唇語專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
@@ -16,18 +17,20 @@
   } catch (e) { document.documentElement.classList.add("prelock"); }
 </script>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="preload" href="assets/fonts/wenkai-tc-subset.woff2" as="font" type="font/woff2" crossorigin>
 </head>
-<body>
+<body class="pg-record">
 <header id="appbar" class="appbar"></header>
 
 <main class="container">
-  <div class="page-head">
-    <div>
-      <p class="eyebrow brand-ink">三個步驟，一句大約 3 秒</p>
-      <h1>錄一段無聲口型</h1>
-      <p class="lede">選一句話、對準鏡頭、跟著畫面提示<strong>不出聲</strong>地念。口型在你的瀏覽器裡就算好了，預設只上傳嘴巴特寫。</p>
+  <h1 class="sr-only">錄一段無聲口型</h1>
+  <div class="rec-head">
+    <div class="tabs" role="tablist" aria-label="輸入方式">
+      <button role="tab" id="tabbtn-guide" aria-controls="tab-guide" aria-selected="true" data-tab="guide">引導錄影</button>
+      <button role="tab" id="tabbtn-upload" aria-controls="tab-upload" aria-selected="false" data-tab="upload">上傳影片</button>
+      <button role="tab" id="tabbtn-recog" aria-controls="tab-recog" aria-selected="false" data-tab="recog">辨識測試</button>
     </div>
-    <div id="libStatus" class="badge muted">未連線</div>
+    <div id="libStatus" class="rec-lib">未連線</div>
   </div>
 
   <div class="inapp" id="inappBox" hidden>
@@ -41,149 +44,158 @@
 
   <div class="layout">
     <div class="col-main">
-      <div class="tabs" role="tablist" aria-label="輸入方式">
-        <button role="tab" id="tabbtn-guide" aria-controls="tab-guide" aria-selected="true" data-tab="guide" data-icon="camera">引導錄影</button>
-        <button role="tab" id="tabbtn-upload" aria-controls="tab-upload" aria-selected="false" data-tab="upload" data-icon="upload">上傳影片</button>
-        <button role="tab" id="tabbtn-recog" aria-controls="tab-recog" aria-selected="false" data-tab="recog" data-icon="target">辨識測試</button>
-      </div>
-
-      <!-- 引導錄影 -->
-      <section class="card" id="tab-guide" role="tabpanel" aria-labelledby="tabbtn-guide">
-        <div class="card-h">
-          <h2>引導錄影</h2>
-          <p>畫面會倒數、提示什麼時候閉嘴、什麼時候念。每段長度和閉嘴時機都一樣，辨識會比較準。</p>
-        </div>
-
-        <details class="howto" id="howto">
-          <summary><span data-icon="book">第一次錄？先看 30 秒的標準錄法</span></summary>
-          <div class="howto-grid">
-            <figure class="howto-fig">
-              <svg viewBox="0 0 220 200" role="img" aria-labelledby="figFrameT">
-                <title id="figFrameT">標準構圖：手機直拿、臉佔畫面約一半、嘴巴在畫面中下方</title>
-                <rect x="60" y="8" width="100" height="184" rx="16" class="f-phone"/>
-                <circle cx="110" cy="20" r="3" class="f-ink"/>
-                <rect x="68" y="32" width="84" height="148" rx="6" class="f-screen"/>
-                <ellipse cx="110" cy="96" rx="30" ry="40" class="f-face"/>
-                <ellipse cx="98" cy="86" rx="4" ry="2.5" class="f-ink"/>
-                <ellipse cx="122" cy="86" rx="4" ry="2.5" class="f-ink"/>
-                <path d="M99 114 q11 7 22 0" class="f-mouth"/>
-                <rect x="94" y="106" width="32" height="18" rx="3" class="f-guide"/>
-                <path d="M162 96 h18" class="f-line"/><text x="182" y="92" class="f-txt">臉佔</text><text x="182" y="105" class="f-txt">約一半</text>
-                <path d="M58 115 h-18" class="f-line"/><text x="2" y="111" class="f-txt">嘴巴</text><text x="2" y="124" class="f-txt">要清楚</text>
-              </svg>
-              <figcaption>手機<strong>直拿</strong>、與眼睛同高，距離約 <strong>30–50 公分</strong>；臉放進框裡、佔畫面約一半。</figcaption>
-            </figure>
-            <figure class="howto-fig">
-              <svg viewBox="0 0 220 200" role="img" aria-labelledby="figTimeT">
-                <title id="figTimeT">時間軸：閉嘴 0.5 秒、無聲念出 1 到 2 秒、閉嘴 0.5 秒</title>
-                <text x="10" y="40" class="f-txt b">一段影片的時間</text>
-                <rect x="10" y="60" width="44" height="34" rx="6" class="f-seg still"/>
-                <rect x="58" y="60" width="108" height="34" rx="6" class="f-seg speak"/>
-                <rect x="170" y="60" width="40" height="34" rx="6" class="f-seg still"/>
-                <text x="32" y="82" class="f-seg-t">閉嘴</text>
-                <text x="112" y="82" class="f-seg-t on">無聲念出</text>
-                <text x="190" y="82" class="f-seg-t">閉嘴</text>
-                <text x="32" y="114" class="f-txt c">0.5 秒</text>
-                <text x="112" y="114" class="f-txt c">1–2 秒</text>
-                <text x="190" y="114" class="f-txt c">0.5 秒</text>
-                <text x="10" y="150" class="f-txt">引導錄影會自動照這個節奏提示，</text>
-                <text x="10" y="166" class="f-txt">跟著畫面上的字做就好。</text>
-              </svg>
-              <figcaption>開頭、結尾都要<strong>閉嘴停一下</strong>，系統靠這段判斷「沒在說話」時的嘴型。</figcaption>
-            </figure>
-          </div>
-          <div class="dodont">
-            <div>
-              <h4><span data-icon="check">這樣做</span></h4>
-              <ul>
-                <li>正對鏡頭，頭不要歪</li>
-                <li>光從<strong>前方</strong>照過來（面對窗戶或檯燈）</li>
-                <li><strong>不出聲</strong>，嘴型清楚、用平常的速度</li>
-                <li>手機放穩（靠著東西或請人拿）</li>
-                <li>每句錄好幾次，最好分不同天錄</li>
-              </ul>
+      <!-- 引導錄影：鏡頭本身告訴你現在的狀態；句子從溝通板挑 -->
+      <section id="tab-guide" role="tabpanel" aria-labelledby="tabbtn-guide">
+        <div class="rec-studio">
+          <div class="rec-main">
+            <div class="rec-screen">
+              <div class="cam" id="gCamBox">
+                <video id="gCam" playsinline webkit-playsinline muted autoplay></video>
+                <canvas class="cam-lips" id="gLips" aria-hidden="true"></canvas>
+                <div class="cam-oval" id="gOval" aria-hidden="true"></div>
+                <div class="cam-cropbox"><canvas id="gCrop" width="320" height="240"></canvas><span>實際錄下的畫面</span></div>
+                <div class="cam-rec">錄影中</div>
+                <ul class="cam-checks" id="gChecks" aria-label="鏡頭檢查">
+                  <li data-k="face"><i></i><span class="ct">臉</span></li>
+                  <li data-k="size"><i></i><span class="ct">距離</span></li>
+                  <li data-k="front"><i></i><span class="ct">正對</span></li>
+                  <li data-k="light"><i></i><span class="ct">光線</span></li>
+                </ul>
+                <div class="cam-cue" id="gCue" aria-live="assertive"></div>
+                <div class="cam-off" id="gCamOff">
+                  <button class="btn primary lg" id="gCamStart" type="button" data-icon="camera">開啟鏡頭</button>
+                  <p>畫面只在你的瀏覽器裡，不會直播，也不會自動上傳。</p>
+                </div>
+              </div>
+              <div class="rec-strip">
+                <div class="rec-timing" id="gTiming" aria-hidden="true"><span><i></i></span><span class="speak"><i></i></span><span><i></i></span></div>
+                <div class="rec-say is-empty" id="gPhrase" aria-live="polite">先選一句要念的話</div>
+              </div>
             </div>
-            <div>
-              <h4><span data-icon="x">避免</span></h4>
-              <ul>
-                <li>戴口罩、用手遮到嘴巴</li>
-                <li>背對窗戶（逆光，臉會變黑）</li>
-                <li>側臉、低頭、離太遠</li>
-                <li>嘴型故意誇張，或念太快</li>
-                <li>一段影片裡念好幾句</li>
-              </ul>
+
+            <p class="rec-guide" id="gGuide" role="status" aria-live="polite"></p>
+
+            <div class="rec-controls">
+              <button class="rec-side" id="gOpenBoard" type="button" aria-controls="gBoardWrap" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>
+                <span>換一句</span>
+              </button>
+              <button class="rec-shutter" id="gRec" type="button" aria-label="開始錄" aria-disabled="true">
+                <svg viewBox="0 0 80 80" aria-hidden="true"><circle class="track" cx="40" cy="40" r="38"/><circle class="prog" id="gRecProg" cx="40" cy="40" r="38"/></svg>
+                <span class="core"></span>
+              </button>
+              <button class="rec-side" id="gRepeatBtn" type="button" aria-label="同一句連續錄 5 次，點一下換次數">
+                <b id="gRepeatN">5 次</b>
+                <span>連續錄</span>
+              </button>
+              <div class="rec-settings">
+                <label class="rec-speaker" for="gSpeaker">錄製者<input id="gSpeaker" maxlength="20" list="speakerList" placeholder="代號" autocomplete="off" title="同一個人每次都用同一個代號"></label>
+                <label class="rec-switch" title="存到雲端的影片只有嘴巴特寫，不會有整張臉。口型在錄的當下就抓好，不影響辨識。"><input type="checkbox" role="switch" id="gMouthOnly" checked><span class="knob"></span>只錄嘴巴</label>
+                <label class="rec-switch"><input type="checkbox" role="switch" id="gShowLips" checked><span class="knob"></span>顯示嘴唇節點</label>
+              </div>
+            </div>
+            <button class="rec-link" id="gHowtoBtn" type="button">第一次錄？先看標準錄法</button>
+
+            <div class="ref-lip" id="gRef" hidden>
+              <div><strong>參考嘴型</strong><p class="help" id="gRefInfo"></p></div>
+              <canvas class="lipcanvas" id="gRefCanvas"></canvas>
+            </div>
+
+            <div class="rec-takes" id="gTakesBox" hidden>
+              <div class="rec-takes-head"><strong id="gTakesTitle">已錄好</strong><small>還沒上傳，點縮圖可以重看</small></div>
+              <ul class="takes" id="gTakes"></ul>
+              <div class="actions">
+                <button class="btn primary lg" id="gUpload" type="button" data-icon="upload">上傳</button>
+                <button class="btn ghost danger" id="gClear" type="button">全部刪除</button>
+              </div>
             </div>
           </div>
-        </details>
 
-        <h3 class="step-h now" id="gStep1"><span>1</span>選要念的句子</h3>
-        <div class="phrase-now">
-          <div>
-            <div class="eyebrow">要念的是</div>
-            <div class="phrase-big" id="gPhrase">—</div>
-            <div class="help" id="gPhraseInfo">從下面挑一句，或按「隨機抽一句」</div>
-          </div>
-          <div class="phrase-actions">
-            <button class="btn" id="gRandom" type="button" data-icon="shuffle">隨機抽一句</button>
-            <label class="check"><input type="checkbox" id="gFirstOnly" checked><span>只抽建議首批</span></label>
-          </div>
-        </div>
-        <p class="help">隨機抽句會優先抽<strong>比較少人錄過</strong>的句子，讓每句的資料量平均。</p>
-        <div id="gBank" class="bank"></div>
-        <div class="field" style="margin-top:12px">
-          <label for="gCustom">或自己輸入</label>
-          <div class="inline-input"><input class="input" id="gCustom" maxlength="40" list="labelList" placeholder="例如：我要吃藥"><button class="btn" id="gCustomOk" type="button">使用</button></div>
-        </div>
-        <div class="ref-lip" id="gRef" hidden>
-          <div><div class="eyebrow">參考嘴型</div><p class="help" id="gRefInfo"></p></div>
-          <canvas class="lipcanvas" id="gRefCanvas"></canvas>
-        </div>
-
-        <h3 class="step-h" id="gStep2"><span>2</span>對準鏡頭</h3>
-        <div class="cam" id="gCamBox">
-          <video id="gCam" playsinline webkit-playsinline muted autoplay></video>
-          <div class="cam-oval" id="gOval"><div class="cam-mouth"></div></div>
-          <div class="cam-cropbox"><canvas id="gCrop" width="320" height="240"></canvas><span>實際錄下的畫面</span></div>
-          <div class="cam-rec" aria-hidden="true">REC</div>
-          <div class="cam-cue" id="gCue" aria-live="assertive"></div>
-          <div class="cam-off" id="gCamOff">
-            <button class="btn primary lg" id="gCamStart" type="button" data-icon="camera">開啟鏡頭</button>
-            <p class="help">畫面只在你的瀏覽器裡，不會直播或自動上傳。</p>
+          <!-- 溝通板：桌機常駐右邊；手機按「換一句」從底部拉出 -->
+          <div class="rec-board-wrap" id="gBoardWrap">
+            <div class="rec-board">
+              <div class="rec-board-head">
+                <h2 id="gBoardTitle">選一句</h2>
+                <div class="rec-board-tools">
+                  <button class="rec-rand" id="gRandom" type="button" title="優先挑比較少人錄過的句子，讓每句的資料量平均">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l10 10h4M3 17h4L17 7h4M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>
+                    挑少人錄的
+                  </button>
+                  <button class="rec-close" id="gBoardClose" type="button">關閉</button>
+                </div>
+              </div>
+              <div id="gBank"></div>
+              <form class="rec-own" id="gCustomForm">
+                <input class="input" id="gCustom" maxlength="40" list="labelList" placeholder="自己輸入，例如：我要吃藥" aria-label="自己輸入要念的話">
+                <button class="btn" id="gCustomOk" type="submit">用這句</button>
+              </form>
+            </div>
           </div>
         </div>
-        <ul class="cam-checks" id="gChecks">
-          <li data-k="face"><span class="ci">?</span><span class="ct">臉在框內</span></li>
-          <li data-k="size"><span class="ci">?</span><span class="ct">距離</span></li>
-          <li data-k="front"><span class="ci">?</span><span class="ct">正對鏡頭</span></li>
-          <li data-k="light"><span class="ci">?</span><span class="ct">光線</span></li>
-        </ul>
+        <div class="rec-scrim" id="gScrim"></div>
 
-        <h3 class="step-h" id="gStep3"><span>3</span>開始錄</h3>
-        <label class="check mouth-toggle"><input type="checkbox" id="gMouthOnly" checked><span><strong>只錄嘴巴</strong>（建議）：存到雲端的影片只有嘴巴特寫，不會有整張臉。口型在錄的當下就抓好，不影響辨識。</span></label>
-        <div class="field-row">
-          <div class="field"><label for="gSpeaker">錄製者代號</label><input class="input" id="gSpeaker" maxlength="20" list="speakerList" placeholder="例如：A" aria-describedby="gSpeakerHelp"><p class="help" id="gSpeakerHelp">預設是登入時的名字。同一個人每次都要用同一個代號。</p></div>
-          <div class="field"><label for="gRepeat">同一句連續錄</label>
-            <select class="input" id="gRepeat" style="width:100%"><option value="1">1 次</option><option value="3">3 次</option><option value="5" selected>5 次</option><option value="10">10 次</option></select></div>
-        </div>
-        <div class="actions">
-          <button class="btn rec lg" id="gRec" type="button"><span data-icon="rec"></span><span id="gRecLabel">開始錄</span></button>
-          <button class="btn ghost danger" id="gStop" type="button" hidden data-icon="stop">停止</button>
-        </div>
-        <div class="takes-box" id="gTakesBox" hidden>
-          <h3 class="subh"><span data-icon="check"></span><span id="gTakesTitle">已錄好</span></h3>
-          <ul class="takes" id="gTakes"></ul>
-          <div class="actions">
-            <button class="btn primary" id="gUpload" type="button" data-icon="upload">上傳這些影片</button>
-            <button class="btn ghost danger" id="gClear" type="button">全部刪除</button>
-          </div>
-        </div>
-
-        <!-- 下一步：永遠告訴使用者現在該做什麼（手機上固定在畫面底部） -->
-        <div class="coach" id="gCoach" role="status" aria-live="polite">
-          <div class="coach-steps" aria-hidden="true"><span>1</span><span>2</span><span>3</span></div>
-          <div class="coach-msg" id="gCoachMsg"><strong></strong><small></small></div>
-          <button class="btn" id="gCoachBtn" type="button"></button>
-        </div>
+        <dialog class="dialog howto-dlg" id="gHowto" aria-labelledby="gHowtoTitle">
+          <form class="dialog-body" method="dialog">
+            <div class="dialog-h"><h2 id="gHowtoTitle">標準錄法</h2><button class="btn ghost" value="close">關閉</button></div>
+            <div class="howto-grid">
+              <figure class="howto-fig">
+                <svg viewBox="0 0 220 200" role="img" aria-labelledby="figFrameT">
+                  <title id="figFrameT">標準構圖：手機直拿、臉佔畫面約一半、嘴巴在畫面中下方</title>
+                  <rect x="60" y="8" width="100" height="184" rx="16" class="f-phone"/>
+                  <circle cx="110" cy="20" r="3" class="f-ink"/>
+                  <rect x="68" y="32" width="84" height="148" rx="6" class="f-screen"/>
+                  <ellipse cx="110" cy="96" rx="30" ry="40" class="f-face"/>
+                  <ellipse cx="98" cy="86" rx="4" ry="2.5" class="f-ink"/>
+                  <ellipse cx="122" cy="86" rx="4" ry="2.5" class="f-ink"/>
+                  <path d="M99 114 q11 7 22 0" class="f-mouth"/>
+                  <path d="M162 96 h18" class="f-line"/><text x="182" y="92" class="f-txt">臉佔</text><text x="182" y="105" class="f-txt">約一半</text>
+                  <path d="M58 115 h-18" class="f-line"/><text x="2" y="111" class="f-txt">嘴巴</text><text x="2" y="124" class="f-txt">要清楚</text>
+                </svg>
+                <figcaption>手機<strong>直拿</strong>、與眼睛同高，距離約 <strong>30–50 公分</strong>；臉放進橢圓框裡。</figcaption>
+              </figure>
+              <figure class="howto-fig">
+                <svg viewBox="0 0 220 200" role="img" aria-labelledby="figTimeT">
+                  <title id="figTimeT">時間軸：閉嘴 0.5 秒、無聲念出 1 到 2 秒、閉嘴 0.5 秒</title>
+                  <text x="10" y="40" class="f-txt b">一段影片的時間</text>
+                  <rect x="10" y="60" width="44" height="34" rx="6" class="f-seg still"/>
+                  <rect x="58" y="60" width="108" height="34" rx="6" class="f-seg speak"/>
+                  <rect x="170" y="60" width="40" height="34" rx="6" class="f-seg still"/>
+                  <text x="32" y="82" class="f-seg-t">閉嘴</text>
+                  <text x="112" y="82" class="f-seg-t on">無聲念出</text>
+                  <text x="190" y="82" class="f-seg-t">閉嘴</text>
+                  <text x="32" y="114" class="f-txt c">0.5 秒</text>
+                  <text x="112" y="114" class="f-txt c">1–2 秒</text>
+                  <text x="190" y="114" class="f-txt c">0.5 秒</text>
+                  <text x="10" y="150" class="f-txt">字幕條上方的細條會照這個</text>
+                  <text x="10" y="166" class="f-txt">節奏走，跟著做就好。</text>
+                </svg>
+                <figcaption>開頭、結尾都要<strong>閉嘴停一下</strong>，系統靠這段判斷「沒在說話」時的嘴型。</figcaption>
+              </figure>
+            </div>
+            <div class="dodont">
+              <div>
+                <h4>這樣做</h4>
+                <ul>
+                  <li>正對鏡頭，頭不要歪</li>
+                  <li>光從<strong>前方</strong>照過來（面對窗戶或檯燈）</li>
+                  <li><strong>不出聲</strong>，嘴型清楚、用平常的速度</li>
+                  <li>手機放穩（靠著東西或請人拿）</li>
+                  <li>每句錄好幾次，最好分不同天錄</li>
+                </ul>
+              </div>
+              <div>
+                <h4>避免</h4>
+                <ul>
+                  <li>戴口罩、用手遮到嘴巴</li>
+                  <li>背對窗戶（逆光，臉會變黑）</li>
+                  <li>側臉、低頭、離太遠</li>
+                  <li>嘴型故意誇張，或念太快</li>
+                  <li>一段影片裡念好幾句</li>
+                </ul>
+              </div>
+            </div>
+          </form>
+        </dialog>
       </section>
 
       <!-- 上傳（可多段） -->
@@ -295,6 +307,7 @@
 
 <script src="assets/config.js"></script>
 <script src="assets/phrases.js"></script>
+<script src="assets/fonts/kai-chars.js"></script>
 <script src="assets/core.js"></script>
 <script>
 (function () {
@@ -318,8 +331,8 @@
       b.setAttribute("aria-selected", String(on));
       $("tab-" + b.dataset.tab).hidden = !on;
     }
-    if (name !== "guide") stopCam();
-    document.body.classList.toggle("has-coach", name === "guide");
+    if (name !== "guide") { stopCam(); closeBoard(); }
+    document.body.classList.toggle("on-guide", name === "guide");
     LR.store.set("sessionStorage", "lr-tab", name);
   }
   tabs.forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
@@ -352,12 +365,9 @@
   function renderLibrary() {
     const on = LR.gh.connected();
     const ls = $("libStatus");
-    if (!on) { ls.textContent = "尚未登入"; ls.className = "badge warn"; }
-    else if (S.loading) { ls.textContent = "讀取資料庫中…"; ls.className = "badge muted"; }
-    else {
-      ls.textContent = `資料庫 ${S.samples.length} 段・${counts("label").length} 種內容・${counts("speaker").length} 位錄製者`;
-      ls.className = "badge accent";
-    }
+    if (!on) ls.textContent = "尚未登入";
+    else if (S.loading) ls.textContent = "讀取資料庫中…";
+    else ls.textContent = `資料庫 ${S.samples.length} 段`;
     const lab = counts("label"), spk = counts("speaker");
     $("labelList").replaceChildren(...lab.map(([l]) => el("option", { value: l })));
     $("speakerList").replaceChildren(...spk.map(([l]) => el("option", { value: l })));
@@ -589,10 +599,15 @@
 
   // ───────── 引導錄影 ─────────
   const PHRASES = Array.isArray(window.LR_PHRASES) ? window.LR_PHRASES : [];
-  const G = { phrase: "", stream: null, timer: 0, recording: false, stop: false, takes: [], refPlayer: null, nextTake: 1, failed: false };
+  // 楷體子集字型收了哪些字（tools/make-kai-subset.py 產生）
+  const KAI = new Set(typeof window.LR_KAI_CHARS === "string" ? [...window.LR_KAI_CHARS] : []);
+  const REPEATS = [1, 3, 5, 10];
+  const G = { phrase: "", stream: null, timer: 0, recording: false, stop: false, takes: [], refPlayer: null, nextTake: 1, failed: false, repeat: 5, lipsTarget: null, lipsShown: null };
   const REC_MIME = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
     .find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
   const cam = $("gCam");
+  const desk = window.matchMedia("(min-width: 900px)");
+  const smooth = () => (LR.reducedMotion() ? "auto" : "smooth");
 
   function labelCounts() {
     const m = new Map();
@@ -600,42 +615,38 @@
     return m;
   }
 
-  // 句庫分類預設只展開「建議首批」，手機上才不會很長
-  const openCats = new Set(PHRASES.filter((c) => c.first).map((c) => c.cat));
+  // 溝通板：建議首批是頂端固定的一排核心詞（白底），其他組依序用五個類別色；資料庫裡句庫以外的內容放最後
   function renderBank() {
     const counts = labelCounts();
     const inBank = new Set(PHRASES.flatMap((c) => c.items));
     const extra = [...counts.keys()].filter((l) => !inBank.has(l));
-    const groups = PHRASES.map((c) => ({ cat: c.cat, first: c.first, items: c.items }));
-    if (extra.length) groups.push({ cat: "資料庫裡的其他內容", items: extra });
-    $("gBank").replaceChildren(...groups.map((g) => {
-      const recorded = g.items.filter((p) => counts.get(p)).length;
-      const d = el("details", { class: "bank-group" + (g.first ? " first" : ""), open: openCats.has(g.cat) || g.items.includes(G.phrase) },
-        el("summary", { class: "bank-cat" }, g.cat, g.first ? LR.icon("star", 14) : null, g.first ? el("small", { text: "建議先錄" }) : null, el("small", { text: `${g.items.length} 句・${recorded} 句有人錄過` })),
-        bankChips(g, counts));
-      d.addEventListener("toggle", () => { if (d.open) openCats.add(g.cat); else openCats.delete(g.cat); });
-      return d;
-    }));
+    let ci = 0;
+    const groups = PHRASES.map((c) => ({ name: c.first ? "先錄這幾句" : c.cat, cls: c.first ? "core" : "cat-" + ((ci++ % 5) + 1), items: c.items }));
+    if (extra.length) groups.push({ name: "資料庫裡的其他內容", cls: "extra", items: extra });
+    $("gBank").replaceChildren(...groups.map((g) => el("div", { class: "rec-grp " + g.cls, role: "group", "aria-label": g.name },
+      el("div", { class: "rec-grp-name", "aria-hidden": "true" }, el("i", null), g.name),
+      el("div", { class: "rec-tiles" }, g.items.map((p) => tile(p, counts.get(p) || 0))))));
   }
-  function bankChips(g, counts) {
-    return el("div", { class: "chips" }, g.items.map((p) => {
-        const n = counts.get(p) || 0;
-        const b = el("button", { type: "button", class: "chip phrase-chip" + (p === G.phrase ? " on" : ""), "aria-pressed": String(p === G.phrase) },
-          p, el("small", { class: n ? "" : "zero", text: n ? String(n) : "0" }));
-        b.addEventListener("click", () => setPhrase(p, true));
-        return b;
-      }));
+  function tile(p, n) {
+    const b = el("button", { type: "button", class: "rec-tile", "aria-pressed": String(p === G.phrase), "aria-label": n ? `${p}，已有 ${n} 段` : p },
+      p, n ? el("span", { class: "n", "aria-hidden": "true", text: String(n) }) : null);
+    b.addEventListener("click", () => setPhrase(p, true));
+    return b;
   }
 
-  const smooth = () => (LR.reducedMotion() ? "auto" : "smooth");
   function setPhrase(p, fromUser) {
+    if (G.recording && fromUser) { toast("錄完這一輪再換句子", "warn"); return; }
     const prev = G.phrase;
     G.phrase = LR.cleanText(p, LR.MAX_LABEL);
     G.failed = false; // 換了句子，「重錄這一句」就不成立了
-    const n = labelCounts().get(G.phrase) || 0;
-    $("gPhrase").textContent = G.phrase || "—";
-    if (G.phrase && G.phrase !== prev) { const big = $("gPhrase"); big.classList.remove("stamp"); void big.offsetWidth; big.classList.add("stamp"); }
-    $("gPhraseInfo").textContent = G.phrase ? (n ? `資料庫已有 ${n} 段` : "資料庫還沒有人錄過這句") : "從下面挑一句，或按「隨機抽一句」";
+    const say = $("gPhrase"), chars = [...G.phrase];
+    say.textContent = G.phrase || "先選一句要念的話";
+    say.classList.toggle("is-empty", !G.phrase);
+    say.classList.toggle("long", chars.length > 8);
+    // 子集字型只收了句庫的字：有任何一個字不在裡面，整句改用黑體，不要一句混兩種字
+    say.classList.toggle("sans", !!G.phrase && !chars.every((c) => KAI.has(c)));
+    say.style.setProperty("--n", String(Math.max(chars.length, 2)));
+    if (G.phrase && G.phrase !== prev) { say.classList.remove("stamp"); void say.offsetWidth; say.classList.add("stamp"); }
     renderBank();
     // 參考嘴型：資料庫裡有人念過、而且有存嘴型座標
     const ref = S.samples.filter((s) => s.label === G.phrase && s.lips).slice(-1)[0];
@@ -647,25 +658,52 @@
       G.refPlayer.load(ref.lips);
       G.refPlayer.play();
     } else if (G.refPlayer) G.refPlayer.pause();
+    if (fromUser) closeBoard();
     updateRecBtn();
-    // 選好句子就帶到下一步（手機上鏡頭在很下面，不捲過去根本看不到；U3）
-    if (fromUser && G.phrase && !G.recording) setTimeout(() => (G.stream ? scrollToCam() : $("gStep2").scrollIntoView({ behavior: smooth(), block: "start" })), 380);
   }
 
-  // 隨機抽句：越少人錄過的越容易被抽到
+  // 挑少人錄的：越少人錄過越容易被抽到，建議首批的權重加倍
   $("gRandom").addEventListener("click", () => {
     const counts = labelCounts();
-    let pool = PHRASES.filter((c) => !$("gFirstOnly").checked || c.first).flatMap((c) => c.items);
-    if (!pool.length) pool = PHRASES.flatMap((c) => c.items);
-    if (pool.length > 1) pool = pool.filter((p) => p !== G.phrase);
-    const w = pool.map((p) => 1 / Math.pow(1 + (counts.get(p) || 0), 2));
+    let pool = PHRASES.flatMap((c) => c.items.map((p) => ({ p, first: !!c.first })));
+    if (pool.length > 1) pool = pool.filter((x) => x.p !== G.phrase);
+    if (!pool.length) return;
+    const w = pool.map((x) => (x.first ? 2 : 1) / Math.pow(1 + (counts.get(x.p) || 0), 2));
     let r = Math.random() * w.reduce((a, b) => a + b, 0);
     let pick = pool[pool.length - 1];
     for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) { pick = pool[i]; break; } }
-    setPhrase(pick, true);
+    setPhrase(pick.p, true);
   });
-  $("gCustomOk").addEventListener("click", () => { const v = LR.cleanText($("gCustom").value, LR.MAX_LABEL); if (v) { setPhrase(v, true); $("gCustom").value = ""; } });
-  $("gCustom").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("gCustomOk").click(); } });
+  $("gCustomForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = LR.cleanText($("gCustom").value, LR.MAX_LABEL);
+    if (v) { setPhrase(v, true); $("gCustom").value = ""; }
+  });
+
+  // 手機：溝通板從底部拉出；桌機常駐右邊
+  function openBoard() {
+    const w = $("gBoardWrap");
+    if (desk.matches) { (w.querySelector('.rec-tile[aria-pressed="true"]') || $("gRandom")).focus(); return; }
+    G.boardReturn = document.activeElement;
+    w.classList.add("open"); $("gScrim").classList.add("open");
+    w.setAttribute("role", "dialog"); w.setAttribute("aria-modal", "true"); w.setAttribute("aria-labelledby", "gBoardTitle");
+    $("gOpenBoard").setAttribute("aria-expanded", "true");
+    setTimeout(() => (w.querySelector('.rec-tile[aria-pressed="true"]') || $("gRandom")).focus({ preventScroll: true }), 60);
+  }
+  function closeBoard() {
+    const w = $("gBoardWrap");
+    if (!w.classList.contains("open")) return;
+    w.classList.remove("open"); $("gScrim").classList.remove("open");
+    w.removeAttribute("role"); w.removeAttribute("aria-modal"); w.removeAttribute("aria-labelledby");
+    $("gOpenBoard").setAttribute("aria-expanded", "false");
+    if (G.boardReturn && document.contains(G.boardReturn)) G.boardReturn.focus({ preventScroll: true });
+  }
+  $("gOpenBoard").addEventListener("click", openBoard);
+  $("gBoardClose").addEventListener("click", closeBoard);
+  $("gScrim").addEventListener("click", closeBoard);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeBoard(); });
+  desk.addEventListener("change", closeBoard);
+  $("gHowtoBtn").addEventListener("click", () => $("gHowto").showModal());
 
   // 錄製者代號：記在這台裝置
   function prefillSpeaker() {
@@ -677,9 +715,23 @@
     updateCoach();
   }
   $("gSpeaker").addEventListener("change", () => LR.store.set("localStorage", "lr-speaker", LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER)));
-  $("gSpeaker").addEventListener("input", () => updateCoach());
-  $("gRepeat").addEventListener("change", () => updateCoach());
+  $("gSpeaker").addEventListener("input", () => { $("gSpeaker").removeAttribute("aria-invalid"); updateCoach(); });
   LR.events.addEventListener("connection", prefillSpeaker);
+
+  // 同一句連續錄幾次：點一下換 1／3／5／10 次
+  const savedRepeat = Number(LR.store.get("localStorage", "lr-repeat"));
+  if (REPEATS.includes(savedRepeat)) G.repeat = savedRepeat;
+  function renderRepeat() {
+    $("gRepeatN").textContent = `${G.repeat} 次`;
+    $("gRepeatBtn").setAttribute("aria-label", `同一句連續錄 ${G.repeat} 次，點一下換次數`);
+  }
+  $("gRepeatBtn").addEventListener("click", () => {
+    if (G.recording) return;
+    G.repeat = REPEATS[(REPEATS.indexOf(G.repeat) + 1) % REPEATS.length];
+    LR.store.set("localStorage", "lr-repeat", String(G.repeat));
+    renderRepeat(); updateCoach();
+  });
+  renderRepeat();
 
   // 只錄嘴巴（預設開啟）：存下的影片只有嘴巴附近，口型在錄影當下用完整畫面算好
   G.mouthOnly = LR.store.get("localStorage", "lr-mouth-only") !== "0";
@@ -690,8 +742,15 @@
     LR.store.set("localStorage", "lr-mouth-only", G.mouthOnly ? "1" : "0");
     $("gCamBox").classList.toggle("mouth-only", G.mouthOnly);
   });
+  // 鏡頭上即時畫出偵測到的嘴唇節點（只畫在這台瀏覽器的畫面上，不會錄進影片）
+  G.showLips = LR.store.get("localStorage", "lr-show-lips") !== "0";
+  $("gShowLips").checked = G.showLips;
+  $("gShowLips").addEventListener("change", () => {
+    G.showLips = $("gShowLips").checked;
+    LR.store.set("localStorage", "lr-show-lips", G.showLips ? "1" : "0");
+  });
 
-  // 手機上側欄預設收合
+  // 手機上側欄預設收合（上傳、辨識分頁才會出現）
   if (window.matchMedia("(max-width: 900px)").matches) document.querySelectorAll("details[data-fold]").forEach((d) => (d.open = false));
 
   // ───────── 鏡頭 ─────────
@@ -715,12 +774,12 @@
     G.cropStream = $("gCrop").captureStream ? $("gCrop").captureStream(30) : null;
     cropLoop();
     try { await LR.loadModel(); } catch (e) { toast("臉部模型載入失敗，無法即時檢查：" + e.message, "warn"); }
-    clearInterval(G.timer);
-    G.timer = setInterval(checkTick, 300);
+    clearTimeout(G.timer);
+    G.timer = setTimeout(checkTick, 0);
     updateRecBtn();
     return true;
   }
-  // 鏡頭框頂端對齊畫面上緣（留 scroll-margin-top），讓鏡頭＋下面四項檢查一起落在底部引導列上方（M1）
+  // 鏡頭框頂端對齊畫面上緣（M1）
   function scrollToCam() { $("gCamBox").scrollIntoView({ behavior: smooth(), block: "start" }); }
 
   // 嘴巴特寫畫面：跟著嘴巴位置（平滑移動）裁出 4:3 的區域
@@ -733,7 +792,7 @@
     const cv = $("gCrop"), g = cv.getContext("2d");
     const W = cam.videoWidth, H = cam.videoHeight;
     if (!W) { g.fillStyle = "#000"; g.fillRect(0, 0, cv.width, cv.height); return; }
-    // 還沒偵測到嘴巴時，先用畫面中下方（橢圓框裡嘴巴參考框的位置）
+    // 還沒偵測到嘴巴時，先用畫面中下方
     const box = G.box || { cx: W / 2, cy: H * 0.63, w: Math.min(W, H) * 0.42 };
     const w = Math.min(box.w, W, H * 4 / 3), h = w * 0.75;
     // 來源範圍限制在畫面內（Safari 對超出範圍的 drawImage 會畫不出來）
@@ -743,15 +802,52 @@
   function cropLoop() {
     if (!G.stream) return;
     if (G.mouthOnly) drawCrop();
+    drawLips();
     requestAnimationFrame(cropLoop);
+  }
+
+  // 即時嘴唇節點：外圈、內圈各 20 點連成線。偵測次數比畫面更新少，所以每一格往最新結果靠近一半，看起來是連續的
+  const NLIP = 20;
+  function drawLips() {
+    const cv = $("gLips");
+    const tgt = G.showLips ? G.lipsTarget : null;
+    if (!tgt || !cam.videoWidth) {
+      if (G.lipsShown) { cv.getContext("2d").clearRect(0, 0, cv.width, cv.height); G.lipsShown = null; }
+      return;
+    }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cw = cv.clientWidth, ch = cv.clientHeight;
+    if (!cw || !ch) return;
+    if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
+    const k = LR.reducedMotion() ? 1 : 0.5;
+    const cur = G.lipsShown && G.lipsShown.length === tgt.length ? G.lipsShown.map((v, i) => v + (tgt[i] - v) * k) : tgt.slice();
+    G.lipsShown = cur;
+    // 影片用 object-fit: cover 填滿框：換算成框裡的座標（鏡像交給 CSS，和影片一起翻）
+    const vw = cam.videoWidth, vh = cam.videoHeight, s = Math.max(cw / vw, ch / vh);
+    const ox = (cw - vw * s) / 2, oy = (ch - vh * s) / 2;
+    const X = (i) => (ox + cur[i * 2] * vw * s) * dpr, Y = (i) => (oy + cur[i * 2 + 1] * vh * s) * dpr;
+    const g = cv.getContext("2d");
+    g.clearRect(0, 0, cv.width, cv.height);
+    // 平常是白色；錄影中變成錄影紅
+    const color = G.recording ? "#ff6b63" : "rgba(255, 255, 255, 0.92)";
+    g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 1.6 * dpr; g.lineJoin = "round";
+    for (const start of [0, NLIP]) {
+      g.beginPath();
+      for (let j = 0; j < NLIP; j++) { const i = start + j; if (j) g.lineTo(X(i), Y(i)); else g.moveTo(X(i), Y(i)); }
+      g.closePath(); g.stroke();
+    }
+    const r = 2.2 * dpr;
+    for (let i = 0; i < NLIP * 2; i++) { g.beginPath(); g.arc(X(i), Y(i), r, 0, Math.PI * 2); g.fill(); }
   }
 
   function stopCam() {
     if (G.recording) return;
-    clearInterval(G.timer);
+    clearTimeout(G.timer);
     if (G.stream) G.stream.getTracks().forEach((t) => t.stop());
     G.stream = null;
     cam.srcObject = null;
+    G.lipsTarget = null; G.lipsShown = null;
+    const lc = $("gLips"); lc.getContext("2d").clearRect(0, 0, lc.width, lc.height);
     $("gCamOff").hidden = false;
     $("gCamBox").classList.remove("on", "ready");
     G.ready = false;
@@ -766,23 +862,27 @@
   });
 
   const CHECK_TEXT = {
-    face: { ok: "臉在框內", off: "把臉移到框中間", bad: "找不到臉" },
-    size: { ok: "距離剛好", far: "太遠了，靠近一點", near: "太近了，退後一點" },
-    front: { ok: "正對鏡頭", turned: "頭轉正一點" },
-    light: { ok: "光線充足", dark: "太暗，找亮一點的地方", bright: "太亮或逆光" },
+    face: { ok: "臉", off: "臉移到框中間", bad: "找不到臉" },
+    size: { ok: "距離", far: "靠近一點", near: "退後一點" },
+    front: { ok: "正對", turned: "頭轉正一點" },
+    light: { ok: "光線", dark: "太暗", bright: "太亮或逆光" },
   };
   function setCheck(k, state) {
     const li = $("gChecks").querySelector(`[data-k="${k}"]`);
-    const good = state === "ok";
-    li.className = state == null ? "" : good ? "ok" : "bad";
-    li.querySelector(".ci").textContent = state == null ? "?" : good ? "✓" : "!";
+    li.className = state == null ? "" : state === "ok" ? "ok" : "bad";
     li.querySelector(".ct").textContent = state == null ? CHECK_TEXT[k].ok : (CHECK_TEXT[k][state] || CHECK_TEXT[k].ok);
   }
+  // 即時檢查：偵測一次花多久，就隔大約四倍再做。快的裝置每秒約 10 次（節點跟得上嘴型），慢的裝置自動放慢，不會卡住
   function checkTick() {
-    if (!G.stream || document.hidden || G.recording) return;
+    clearTimeout(G.timer);
+    if (!G.stream) return;
+    if (document.hidden || G.recording) { G.timer = setTimeout(checkTick, 300); return; }
+    const t0 = performance.now();
     let r = null;
     try { r = LR.checkFrame(cam); } catch { r = null; }
+    G.timer = setTimeout(checkTick, Math.min(300, Math.max(90, (performance.now() - t0) * 4)));
     if (!r) return;
+    G.lipsTarget = r.lipPts || null;
     updateBox(r.box);
     const c = r.checks;
     setCheck("face", c.face ? (c.center === "ok" ? "ok" : "off") : "bad");
@@ -795,77 +895,57 @@
     updateCoach();
   }
 
-  function updateRecBtn() {
-    $("gRec").disabled = G.recording || S.busy;
-    $("gRecLabel").textContent = G.stream ? "開始錄" : "開鏡頭";
-    updateCoach();
-  }
+  function updateRecBtn() { updateCoach(); }
 
-  // ───────── 下一步引導（U3、U5）：永遠只說「現在該做的那一件事」，按鈕直接幫你做 ─────────
-  let coachKey = "";
+  // ───────── 指引（U3、U5）：鏡頭下面一句話，永遠只說「現在該做的那一件事」 ─────────
   function coachState() {
-    const n = Number($("gRepeat").value) || 1;
     const speaker = LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER);
-    if (G.recording) return { step: 3, title: "錄影中，看著畫面上的字念", sub: G.progress || "", btn: ["停止", "stop", "stop", () => { G.stop = true; }] };
-    if (!G.phrase) return { step: 1, title: "第 1 步：選一句要念的話", sub: "點上面任一句，或讓系統挑最少人錄的", btn: ["隨機抽一句", "shuffle", "primary", () => $("gRandom").click()] };
-    if (!G.stream) return { step: 2, title: "第 2 步：開啟鏡頭", sub: `接下來要念「${G.phrase}」`, btn: ["開啟鏡頭", "camera", "primary", async () => { if (await startCam()) scrollToCam(); }] };
-    if (G.takes.length) return { step: 3, title: `錄好 ${G.takes.length} 段了`, sub: "確認沒問題就上傳；也可以換一句繼續錄", btn: [`上傳 ${G.takes.length} 段`, "upload", "primary", () => $("gUpload").click()] };
-    if (!speaker) return { step: 3, title: "填一下錄製者代號", sub: "同一個人每次都用同一個代號，報告才分得出是誰", btn: ["去填代號", "pen", "primary", () => { $("gSpeaker").scrollIntoView({ behavior: smooth(), block: "center" }); $("gSpeaker").focus(); }] };
-    // 還沒對準：這一步要做的是「調整姿勢」，不是按按鈕。所以只給一個低調的「略過檢查」，不要用大按鈕催人跳過（M3）
-    if (!G.ready) return { step: 2, title: G.failed ? "剛剛那段沒錄好，先把臉放進框裡" : "把臉放進橢圓框裡", sub: (G.issues && G.issues.length ? G.issues.join("・") : "框線變成綠色就可以錄了"), btn: ["略過檢查", "rec", "skip", recClick] };
-    return { step: 3, title: G.failed ? "對準了，再錄一次" : "準備好了！", sub: `「${G.phrase}」連續錄 ${n} 次，倒數 3 秒後開始`, btn: [G.failed ? "重錄這一句" : "開始錄", "rec", "rec", recClick] };
+    const canRec = !!(G.phrase && G.stream && speaker && !(S.busy && !G.recording));
+    if (G.recording) return { text: G.progress || "錄影中，看著字幕念", act: "stop" };
+    if (!G.phrase) return { text: desk.matches ? "從右邊的溝通板點一句要念的話" : "點「換一句」挑一句要念的話", act: "wait" };
+    if (!G.stream) return { text: "接下來按鏡頭中間的「開啟鏡頭」", act: "wait" };
+    if (!speaker) return { text: "填一下錄製者代號，同一個人每次都用同一個", act: "wait" };
+    // 還沒對準：這一步要做的是調整姿勢。錄影鍵維持灰色，只給一個低調的「略過檢查」（M3）
+    if (!G.ready) return { text: G.failed ? "剛剛沒錄好，先把臉放進框裡" : "把臉放進框裡，四個點都變實心就能錄", act: "wait", skip: canRec };
+    if (G.takes.length) return { text: `錄好 ${G.takes.length} 段了，確認沒問題就上傳；也可以繼續錄`, act: canRec ? "rec" : "wait" };
+    return { text: G.failed ? "對準了，按紅鍵重錄這一句" : `對準了，按紅鍵開始，倒數 3 秒後連續錄 ${G.repeat} 次`, act: canRec ? "rec" : "wait" };
   }
-  // 按鈕的意思一換（例如「停止」→「重錄」），先停用一下，避免手指剛好按到新的動作（M2）
+  // 錄影鍵的意思一換（「錄」↔「停止」），先鎖 0.7 秒，避免手指剛好按到新的動作（M2）
   const COACH_LOCK_MS = 700;
-  let coachLock = 0;
+  let coachKey = "", coachAct = "", coachLock = 0;
   function updateCoach() {
-    if (!$("gCoach")) return;
     const st = coachState();
-    const key = [st.step, st.title, st.sub, st.btn[0]].join("|");
-    // 步驟標題：完成打勾、目前這步放大
-    const done1 = !!G.phrase, done2 = !!(G.stream && G.ready);
-    $("gStep1").className = "step-h " + (done1 ? "done" : "now");
-    $("gStep2").className = "step-h " + (done2 ? "done" : done1 ? "now" : "");
-    $("gStep3").className = "step-h " + (done1 && done2 ? "now" : "");
-    [...$("gCoach").querySelectorAll(".coach-steps span")].forEach((d, i) => {
-      d.className = i + 1 < st.step || (i === 0 && done1) || (i === 1 && done2) ? "done" : i + 1 === st.step ? "on" : "";
-    });
-    if (key === coachKey) return;
-    coachKey = key;
-    const msg = $("gCoachMsg");
-    msg.querySelector("strong").textContent = st.title;
-    msg.querySelector("small").textContent = st.sub;
-    msg.classList.remove("swap"); void msg.offsetWidth; msg.classList.add("swap");
-    const [text, icon, cls, act] = st.btn;
-    const b = $("gCoachBtn");
-    // 用圖示名稱當「動作種類」：略過檢查／開始錄／重錄都是同一個 recClick，彼此切換不必鎖；
-    // 錄影中每段進度文字會變，但動作一直是「停止」，也不鎖
-    const changed = b.dataset.act !== undefined && b.dataset.act !== icon;
-    b.dataset.act = icon;
-    b.className = "btn " + cls;
-    b.replaceChildren(LR.icon(icon, 16), el("span", { text }));
-    b.onclick = act;
-    const enable = () => { b.disabled = S.busy && !G.recording; b.classList.remove("locked"); };
-    if (changed) {
+    const key = st.text + "|" + (st.skip ? 1 : 0);
+    if (key !== coachKey) {
+      coachKey = key;
+      const g = $("gGuide");
+      g.replaceChildren(st.text);
+      if (st.skip) g.append(el("button", { type: "button", class: "rec-skip", onclick: recClick, text: "略過檢查" }));
+    }
+    const sh = $("gRec");
+    sh.classList.toggle("stop", st.act === "stop");
+    sh.setAttribute("aria-disabled", String(st.act === "wait"));
+    sh.setAttribute("aria-label", st.act === "stop" ? "停止" : G.failed ? "重錄這一句" : "開始錄");
+    const kind = st.act === "stop" ? "stop" : "rec";
+    if (coachAct && coachAct !== kind) {
       const token = ++coachLock;
-      b.disabled = true; b.classList.add("locked");
-      setTimeout(() => { if (token === coachLock) enable(); }, COACH_LOCK_MS);
-    } else if (!b.classList.contains("locked")) enable();
+      sh.classList.add("locked");
+      setTimeout(() => { if (token === coachLock) sh.classList.remove("locked"); }, COACH_LOCK_MS);
+    }
+    coachAct = kind;
   }
 
   // ───────── 錄影流程 ─────────
-  function cue(text, kind, ms) {
+  function cue(text, kind) {
     const c = $("gCue");
     c.className = "cam-cue" + (kind ? " " + kind : "");
     c.replaceChildren();
-    if (!text) return;
-    c.append(el("span", { class: "cue-text", text }));
-    if (ms) c.append(el("span", { class: "cue-bar", style: `animation-duration:${ms}ms` }));
+    if (text) c.append(el("span", { class: "cue-text", text }));
   }
   function cueDone(text) {
     const c = $("gCue");
     c.className = "cam-cue done";
-    c.replaceChildren(el("span", { class: "cue-text" }, el("span", { class: "cue-check" }, LR.icon("check")), el("span", { text })));
+    c.replaceChildren(el("span", { class: "cue-check" }, LR.icon("check")), el("span", { class: "cue-text", text }));
   }
   // 沒錄好：停在畫面上說清楚原因，點一下或下次開始錄時才消失（U2）
   function cueFail(title, detail) {
@@ -875,6 +955,30 @@
   }
   $("gCue").addEventListener("click", () => { if ($("gCue").classList.contains("fail")) cue(""); });
   const speakMs = (p) => Math.max(1400, Math.min(3600, 800 + 330 * [...p].length));
+
+  // 字幕條上方的節奏條：閉嘴／念／閉嘴，三段照實際秒數分配寬度
+  function timingStart(durs) {
+    const segs = [...$("gTiming").children];
+    segs.forEach((s, i) => { s.style.flexGrow = String(durs[i]); const b = s.firstElementChild; b.style.transition = "none"; b.style.transform = "scaleX(0)"; });
+    void $("gTiming").offsetWidth;
+    $("gTiming").classList.add("show");
+  }
+  function timingRun(i, ms) { const b = $("gTiming").children[i].firstElementChild; b.style.transition = `transform ${ms}ms linear`; b.style.transform = "scaleX(1)"; }
+  function timingEnd() { $("gTiming").classList.remove("show"); $("gPhrase").classList.remove("dim"); }
+  async function phase(i, ms, text, speak) {
+    cue(text, speak ? "speak" : "still");
+    $("gPhrase").classList.toggle("dim", !speak);
+    timingRun(i, ms);
+    await LR.sleep(ms);
+  }
+  // 倒數時錄影鍵外圈的紅環跟著收
+  function ringCountdown(ms) {
+    const p = $("gRecProg");
+    p.style.transition = "none"; p.style.strokeDashoffset = "239";
+    void p.getBoundingClientRect();
+    p.style.transition = `stroke-dashoffset ${ms}ms linear`; p.style.strokeDashoffset = "0";
+  }
+  function ringReset() { const p = $("gRecProg"); p.style.transition = "none"; p.style.strokeDashoffset = "239"; }
 
   const nextVideoFrame = (fn) => (cam.requestVideoFrameCallback ? cam.requestVideoFrameCallback(() => fn()) : requestAnimationFrame(() => fn()));
 
@@ -893,24 +997,23 @@
       let a = null;
       try { a = LR.analyzeFrame(cam); } catch { a = null; }
       const t = performance.now() - t0;
-      if (a && a.feature) { samples.push({ t, feature: a.feature, lips: a.lips }); updateBox(a.box); }
-      else samples.push({ t, feature: null });
+      if (a && a.feature) { samples.push({ t, feature: a.feature, lips: a.lips }); updateBox(a.box); G.lipsTarget = a.lipPts || null; }
+      else { samples.push({ t, feature: null }); G.lipsTarget = null; }
       nextVideoFrame(step);
     };
+    const ms = speakMs(phrase);
+    timingStart([650, ms, 600]);
     rec.start();
     nextVideoFrame(step);
-    cue("閉嘴", "still", 650);
-    await LR.sleep(650);
-    if (G.stop) { live = false; rec.stop(); await stopped; return null; }
-    const ms = speakMs(phrase);
-    cue(phrase, "speak", ms);
-    await LR.sleep(ms);
-    cue("閉嘴", "still", 600);
-    await LR.sleep(600);
+    await phase(0, 650, "閉嘴", false);
+    if (G.stop) { live = false; rec.stop(); await stopped; timingEnd(); return null; }
+    await phase(1, ms, "現在念", true);
+    await phase(2, 600, "閉嘴", false);
     live = false;
     rec.stop();
     await stopped;
     cue("");
+    timingEnd();
     const pre = LR.fromLiveSamples(samples); // 抓不到臉會丟出錯誤
     const type = REC_MIME.split(";")[0];
     const ext = type === "video/mp4" ? "mp4" : "webm";
@@ -920,34 +1023,36 @@
   }
 
   async function recClick() {
-    if (G.recording) return;
-    if (!G.phrase) { toast("先選一句要念的話", "warn"); $("gStep1").scrollIntoView({ behavior: smooth(), block: "start" }); return; }
-    // 鏡頭還沒開：這次只開鏡頭，讓人先對準；框線變綠再按一次才開始錄
+    if (G.recording || S.busy) return;
+    if (!G.phrase) { toast("先選一句要念的話", "warn"); openBoard(); return; }
+    // 鏡頭還沒開：這次只開鏡頭，讓人先對準；四個點都實心再按一次才開始錄
     if (!G.stream) { if (await startCam()) scrollToCam(); return; }
     const speaker = LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER);
-    if (!speaker) { toast("請填錄製者代號（同一個人每次都用同一個）", "warn"); $("gSpeaker").focus(); return; }
-    // 還沒對準就先確認，避免一次白錄好幾段（U2）
+    if (!speaker) { toast("請填錄製者代號（同一個人每次都用同一個）", "warn"); $("gSpeaker").setAttribute("aria-invalid", "true"); $("gSpeaker").focus(); return; }
+    // 還沒對準就先確認，避免一次白錄好幾段（U2）；建議的「先調整」是主按鈕（M3）
     if (!G.ready) {
       const issues = G.issues && G.issues.length ? G.issues.join("、") : "臉部檢查還沒準備好";
       const go = await LR.confirm({
         title: "鏡頭還沒對準",
-        body: [`目前：${issues}。`, "這樣錄的口型很可能抓不到。建議等橢圓框變成綠色再錄。"],
+        body: [`目前：${issues}。`, "這樣錄的口型很可能抓不到。建議等四個點都變實心再錄。"],
         ok: "仍要開始", cancel: "先調整", recommendCancel: true,
       });
       if (!go) return;
     }
     LR.store.set("localStorage", "lr-speaker", speaker);
-    const n = Number($("gRepeat").value) || 1;
+    const n = G.repeat;
     G.recording = true; G.stop = false; G.failed = false;
-    $("gStop").hidden = false; $("gCamBox").classList.add("recording");
+    $("gCamBox").classList.add("recording");
     cue("");
     updateRecBtn();
     scrollToCam();
     let made = 0, fail = null;
     try {
+      ringCountdown(2100);
       for (const k of ["3", "2", "1"]) { if (G.stop) break; cue(k, "count"); await LR.sleep(700); }
+      ringReset();
       for (let i = 0; i < n && !G.stop; i++) {
-        G.progress = `第 ${i + 1} / ${n} 次・「${G.phrase}」`;
+        G.progress = `第 ${i + 1}／${n} 次，看著字幕念`;
         updateCoach();
         try {
           const r = await recordOnce(G.phrase, speaker);
@@ -956,27 +1061,28 @@
           fail = { i, msg: e.message };   // 第一段沒錄好就停，不要讓人白錄後面幾段
           break;
         }
-        if (i < n - 1 && !G.stop) { cue(`休息一下・下一次 ${i + 2} / ${n}`, "rest", 1300); await LR.sleep(1300); }
+        if (i < n - 1 && !G.stop) { cue(`休息一下，接著第 ${i + 2}／${n} 次`, "rest"); await LR.sleep(1300); }
       }
       if (fail) {
         G.failed = true;
         cueFail(`第 ${fail.i + 1} 段沒錄好，已暫停`, fail.msg);
       } else {
-        cueDone(G.stop ? `已停止・錄好 ${made} 段` : `完成！錄好 ${made} 段`);
+        cueDone(G.stop ? `已停止，錄好 ${made} 段` : `錄好 ${made} 段`);
         setTimeout(() => { if ($("gCue").classList.contains("done")) cue(""); }, 1800);
       }
     } catch (e) {
       toast("錄影失敗：" + e.message, "bad");
       cue("");
     } finally {
+      ringReset(); timingEnd();
       G.recording = false; G.progress = "";
-      $("gStop").hidden = true; $("gCamBox").classList.remove("recording");
+      $("gCamBox").classList.remove("recording");
       updateRecBtn();
       if (document.hidden) stopCam(); // 錄影中切走分頁時，錄完就關鏡頭
     }
   }
-  $("gRec").addEventListener("click", recClick);
-  $("gStop").addEventListener("click", () => { G.stop = true; });
+  // 錄影鍵：錄影中按是「停止」，其他時候走 recClick（還沒選句、沒開鏡頭、沒對準都在裡面處理）
+  $("gRec").addEventListener("click", () => { if (G.recording) { G.stop = true; return; } recClick(); });
 
   function addTake(r, label, speaker) {
     G.takes.push({ file: r.file, pre: r.pre, mouthOnly: r.mouthOnly, label, speaker, url: URL.createObjectURL(r.file) });
@@ -984,15 +1090,14 @@
   }
   function renderTakes() {
     $("gTakesBox").hidden = !G.takes.length;
-    $("gTakesTitle").textContent = `已錄好 ${G.takes.length} 段（還沒上傳）`;
+    $("gTakesTitle").textContent = `已錄好 ${G.takes.length} 段`;
+    $("gUpload").replaceChildren(LR.icon("upload", 16), el("span", { text: `上傳 ${G.takes.length} 段` }));
     $("gTakes").replaceChildren(...G.takes.map((t, i) => {
-      const v = el("video", { src: t.url, muted: true, playsinline: true, preload: "metadata", class: "take-v" });
+      const v = el("video", { src: t.url, muted: true, playsinline: true, preload: "metadata", class: "take-v", title: `${t.label}（錄製者 ${t.speaker}，${t.mouthOnly ? "只有嘴巴" : "完整畫面"}，${LR.fmtSize(t.file.size)}）` });
       v.addEventListener("click", () => { v.currentTime = 0; v.play().catch(() => {}); });
-      const del = el("button", { class: "icon-btn", type: "button", "aria-label": "刪除這段", title: "刪除", text: "×" });
+      const del = el("button", { class: "icon-btn", type: "button", "aria-label": `刪除第 ${i + 1} 段`, title: "刪除", text: "×" });
       del.addEventListener("click", () => { URL.revokeObjectURL(t.url); G.takes.splice(i, 1); renderTakes(); });
-      return el("li", { class: "take" }, v,
-        el("div", { class: "take-info" }, el("strong", { text: t.label }),
-          el("small", { text: `錄製者 ${t.speaker}・${t.mouthOnly ? "只有嘴巴" : "完整畫面"}・${LR.fmtSize(t.file.size)}・口型已抓好` })), del);
+      return el("li", { class: "take" }, v, del);
     }));
     updateCoach();
   }
