@@ -684,8 +684,20 @@ textarea.input { resize: vertical; min-height: 120px; font: 15px/1.6 var(--font)
 .phrase-big { font-size: 34px; font-weight: 750; line-height: 1.2; letter-spacing: .03em; }
 .phrase-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .bank { display: grid; gap: 12px; margin-top: 10px; }
-.bank-cat { font-size: 12px; font-weight: 650; color: var(--muted); margin-bottom: 6px; }
-.bank-group.first .bank-cat { color: var(--warn-ink); }
+.bank { gap: 8px; }
+.bank-group { border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; background: var(--surface); }
+.bank-group[open] { padding-bottom: 12px; }
+.bank-cat { font-size: 14px; font-weight: 650; color: var(--ink); padding: 10px 0; cursor: pointer; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bank-cat small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.bank-group.first { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.mouth-toggle { align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); margin-bottom: 14px; line-height: 1.55; }
+.mouth-toggle input { margin-top: 3px; flex: none; }
+/* 可收合的卡片 */
+details.card.fold > summary { list-style: none; cursor: pointer; margin-bottom: 0; }
+details.card.fold > summary::-webkit-details-marker { display: none; }
+details.card.fold > summary h2::after { content: "▾"; display: inline-block; margin-left: 8px; color: var(--muted); font-size: 13px; transition: transform .2s; }
+details.card.fold:not([open]) > summary h2::after { transform: rotate(-90deg); }
+details.card.fold[open] > summary { margin-bottom: 18px; }
 .phrase-chip { font-size: 14px; padding: 5px 12px; }
 .phrase-chip small { background: var(--surface-2); border-radius: 999px; padding: 0 6px; margin-left: 6px; color: var(--ink-2); }
 .phrase-chip small.zero { color: var(--muted); }
@@ -697,7 +709,12 @@ textarea.input { resize: vertical; min-height: 120px; font: 15px/1.6 var(--font)
 @media (max-width: 520px) { .ref-lip { grid-template-columns: 1fr; } }
 .cam { position: relative; border-radius: 14px; overflow: hidden; background: #0d0d0d; aspect-ratio: 4 / 3; max-height: 70vh; margin: 0 auto; }
 @media (max-width: 600px) { .cam { aspect-ratio: 3 / 4; } }
-.cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+/* 影片絕對定位填滿框：避免影片尺寸還沒載入時，鏡像翻轉以錯誤的中心點翻過去而偏左 */
+.cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.cam-cropbox { position: absolute; right: 10px; top: 10px; width: 32%; max-width: 170px; display: none; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; z-index: 2; }
+.cam.on.mouth-only .cam-cropbox { display: flex; }
+.cam-cropbox canvas { width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; border: 2px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.4); background: #000; transform: scaleX(-1); display: block; }
+.cam-cropbox span { font-size: 11px; color: #fff; background: rgba(0,0,0,.6); padding: 1px 8px; border-radius: 999px; }
 .cam-oval { position: absolute; left: 50%; top: 47%; height: 74%; aspect-ratio: 3 / 4; transform: translate(-50%, -50%); border: 3px dashed rgba(255,255,255,.75); border-radius: 50%; pointer-events: none; transition: border-color .2s; display: none; }
 .cam.on .cam-oval { display: block; }
 .cam.ready .cam-oval { border-color: #2fd36b; border-style: solid; box-shadow: 0 0 0 4px rgba(47,211,107,.25); }

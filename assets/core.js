@@ -283,7 +283,42 @@
       checks.front = ratio > 0.62 && ratio < 1.6 ? "ok" : "turned";
     }
     const ok = checks.face && checks.center === "ok" && checks.size === "ok" && checks.front === "ok" && checks.light === "ok";
-    return { ok, checks, lum, nose: nose ? { x: nose.x, y: nose.y } : null, faceW };
+    return { ok, checks, lum, nose: nose ? { x: nose.x, y: nose.y } : null, faceW, box: checks.face ? mouthBox(res, video.videoWidth, video.videoHeight) : null };
+  };
+
+  // 嘴唇外圈的範圍（像素），用來裁出「只有嘴巴」的畫面
+  function mouthBox(res, W, H) {
+    const lm = res.faceLandmarks[0];
+    let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+    for (const i of LIP_OUTER) { const p = lm[i]; x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    return { cx: (x0 + x1) / 2 * W, cy: (y0 + y1) / 2 * H, w: (x1 - x0) * W, h: (y1 - y0) * H };
+  }
+
+  /** 錄影當下逐格分析：回傳這一格的特徵、嘴唇輪廓、嘴巴位置；抓不到臉時 feature 為 null。 */
+  LR.analyzeFrame = function (video) {
+    if (!landmarker || !video.videoWidth) return null;
+    const W = video.videoWidth, H = video.videoHeight;
+    const res = landmarker.detect(video);
+    const feature = frameFeature(res, W, H);
+    if (!feature) return { feature: null };
+    return { feature, lips: lipShape(res, W, H), box: mouthBox(res, W, H) };
+  };
+
+  /** 把錄影時收集的逐格結果整理成跟 LR.extract 一樣的格式（重新取樣成每秒 25 格）。 */
+  LR.fromLiveSamples = function (samples) {
+    if (!samples.length) throw new Error("沒有錄到畫面");
+    const last = samples[samples.length - 1].t;
+    const raw = [], lips = [];
+    let n = 0, miss = 0, j = 0;
+    for (let t = 20; t <= last; t += 1000 / FPS) {
+      while (j + 1 < samples.length && samples[j + 1].t <= t) j++;
+      n++;
+      const s = samples[j];
+      if (s && s.feature) { raw.push(s.feature); lips.push(s.lips); } else miss++;
+    }
+    const quality = { frames: n, missed: miss, duration: Math.round(last / 10) / 100 };
+    if (raw.length < 5 || miss > n * 0.5) throw new Error(`有 ${miss}/${n} 格抓不到臉，請把臉放進框裡重錄`);
+    return { frames: preprocess(raw), lips, quality };
   };
 
   /** 讀一段影片，逐格抓嘴唇節點，回傳 { frames, lips, quality }。 */

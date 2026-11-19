@@ -45,7 +45,7 @@
         </div>
 
         <details class="howto" id="howto">
-          <summary>📖 標準錄法示範（第一次錄請先看）</summary>
+          <summary>📖 標準錄法示範（第一次錄請先點開看）</summary>
           <div class="howto-grid">
             <figure class="howto-fig">
               <svg viewBox="0 0 220 200" role="img" aria-labelledby="figFrameT">
@@ -133,6 +133,7 @@
         <div class="cam" id="gCamBox">
           <video id="gCam" playsinline webkit-playsinline muted autoplay></video>
           <div class="cam-oval" id="gOval"><div class="cam-mouth"></div></div>
+          <div class="cam-cropbox"><canvas id="gCrop" width="320" height="240"></canvas><span>實際錄下的畫面</span></div>
           <div class="cam-cue" id="gCue" aria-live="assertive"></div>
           <div class="cam-off" id="gCamOff">
             <button class="btn primary lg" id="gCamStart" type="button">📷 開啟鏡頭</button>
@@ -147,6 +148,7 @@
         </ul>
 
         <h3 class="step-h"><span>3</span>開始錄</h3>
+        <label class="check mouth-toggle"><input type="checkbox" id="gMouthOnly" checked><span><strong>只錄嘴巴</strong>（建議）：存到雲端的影片只有嘴巴特寫，不會有整張臉。口型在錄的當下就抓好，不影響辨識。</span></label>
         <div class="field-row">
           <div class="field"><label for="gSpeaker">錄製者代號</label><input class="input" id="gSpeaker" maxlength="20" list="speakerList" placeholder="例如：A"></div>
           <div class="field"><label for="gRepeat">同一句連續錄</label>
@@ -245,11 +247,11 @@
     </div>
 
     <aside class="col-side">
-      <section class="card">
-        <div class="card-h row">
+      <details class="card fold" open data-fold>
+        <summary class="card-h row">
           <h2>口型追蹤</h2>
           <span class="badge muted" id="previewBadge">待命</span>
-        </div>
+        </summary>
         <div class="stage">
           <video id="video" muted playsinline webkit-playsinline></video>
           <canvas id="overlay"></canvas>
@@ -261,14 +263,14 @@
           <div><dt>抓到臉</dt><dd id="stFound">—</dd></div>
           <div><dt>長度</dt><dd id="stDur">—</dd></div>
         </dl>
-      </section>
-      <section class="card">
-        <div class="card-h row">
+      </details>
+      <details class="card fold" open data-fold>
+        <summary class="card-h row">
           <h2>最近上傳</h2>
           <a class="link" href="report.html">看分析報告 →</a>
-        </div>
+        </summary>
         <ul class="recent" id="recentList"></ul>
-      </section>
+      </details>
     </aside>
   </div>
 </main>
@@ -376,6 +378,7 @@
     $("runUpload").textContent = pending ? `開始處理 ${pending} 段` : "開始處理";
     $("clearDone").hidden = S.busy || !S.queue.some((q) => q.status === "done");
     $("runRecog").disabled = S.busy || !S.recog;
+    try { updateRecBtn(); } catch { /* 引導錄影還沒初始化 */ }
   }
 
   // ───────── 預覽 ─────────
@@ -519,7 +522,8 @@
           q.status = "running"; q.note = ""; q.checked = false; renderQueue();
           setBadge(q.label, "accent");
           try {
-            const r = await LR.extract(q.file, {
+            // 引導錄影的影片在錄的當下就抓好口型了（只錄嘴巴的影片無法再偵測整張臉）
+            const r = q.pre || await LR.extract(q.file, {
               video, canvas: overlay, onProgress, shouldStop: () => S.stop,
             });
             let drive = null;
@@ -566,21 +570,31 @@
     return m;
   }
 
+  // 句庫分類預設只展開「建議首批」，手機上才不會很長
+  const openCats = new Set(PHRASES.filter((c) => c.first).map((c) => c.cat));
   function renderBank() {
     const counts = labelCounts();
     const inBank = new Set(PHRASES.flatMap((c) => c.items));
     const extra = [...counts.keys()].filter((l) => !inBank.has(l));
     const groups = PHRASES.map((c) => ({ cat: c.cat, first: c.first, items: c.items }));
     if (extra.length) groups.push({ cat: "資料庫裡的其他內容", items: extra });
-    $("gBank").replaceChildren(...groups.map((g) => el("div", { class: "bank-group" + (g.first ? " first" : "") },
-      el("div", { class: "bank-cat", text: g.cat + (g.first ? "　⭐" : "") }),
-      el("div", { class: "chips" }, g.items.map((p) => {
+    $("gBank").replaceChildren(...groups.map((g) => {
+      const recorded = g.items.filter((p) => counts.get(p)).length;
+      const d = el("details", { class: "bank-group" + (g.first ? " first" : ""), open: openCats.has(g.cat) || g.items.includes(G.phrase) },
+        el("summary", { class: "bank-cat" }, g.cat + (g.first ? "　⭐" : ""), el("small", { text: `${g.items.length} 句・${recorded} 句有人錄過` })),
+        bankChips(g, counts));
+      d.addEventListener("toggle", () => { if (d.open) openCats.add(g.cat); else openCats.delete(g.cat); });
+      return d;
+    }));
+  }
+  function bankChips(g, counts) {
+    return el("div", { class: "chips" }, g.items.map((p) => {
         const n = counts.get(p) || 0;
         const b = el("button", { type: "button", class: "chip phrase-chip" + (p === G.phrase ? " on" : ""), "aria-pressed": String(p === G.phrase) },
           p, el("small", { class: n ? "" : "zero", text: n ? String(n) : "0" }));
         b.addEventListener("click", () => setPhrase(p));
         return b;
-      })))));
+      }));
   }
 
   function setPhrase(p) {
@@ -621,9 +635,18 @@
   $("gSpeaker").value = LR.store.get("localStorage", "lr-speaker") || "";
   $("gSpeaker").addEventListener("change", () => LR.store.set("localStorage", "lr-speaker", LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER)));
 
-  // 第一次來，展開示範
-  if (!LR.store.get("localStorage", "lr-howto-seen")) $("howto").open = true;
-  $("howto").addEventListener("toggle", () => { if (!$("howto").open) LR.store.set("localStorage", "lr-howto-seen", "1"); });
+  // 只錄嘴巴（預設開啟）：存下的影片只有嘴巴附近，口型在錄影當下用完整畫面算好
+  G.mouthOnly = LR.store.get("localStorage", "lr-mouth-only") !== "0";
+  $("gMouthOnly").checked = G.mouthOnly;
+  $("gCamBox").classList.toggle("mouth-only", G.mouthOnly);
+  $("gMouthOnly").addEventListener("change", () => {
+    G.mouthOnly = $("gMouthOnly").checked;
+    LR.store.set("localStorage", "lr-mouth-only", G.mouthOnly ? "1" : "0");
+    $("gCamBox").classList.toggle("mouth-only", G.mouthOnly);
+  });
+
+  // 手機上側欄預設收合
+  if (window.matchMedia("(max-width: 900px)").matches) document.querySelectorAll("details[data-fold]").forEach((d) => (d.open = false));
 
   // ───────── 鏡頭 ─────────
   async function startCam() {
@@ -642,12 +665,39 @@
     await cam.play().catch(() => {});
     $("gCamOff").hidden = true;
     $("gCamBox").classList.add("on");
+    G.box = null;
+    G.cropStream = $("gCrop").captureStream ? $("gCrop").captureStream(30) : null;
+    cropLoop();
     try { await LR.loadModel(); } catch (e) { toast("臉部模型載入失敗，無法即時檢查：" + e.message, "warn"); }
     clearInterval(G.timer);
     G.timer = setInterval(checkTick, 300);
     updateRecBtn();
     return true;
   }
+
+  // 嘴巴特寫畫面：跟著嘴巴位置（平滑移動）裁出 4:3 的區域
+  function updateBox(b) {
+    if (!b) return;
+    const t = { cx: b.cx, cy: b.cy, w: Math.max(b.w * 1.8, 60) };
+    G.box = G.box ? { cx: G.box.cx + (t.cx - G.box.cx) * 0.35, cy: G.box.cy + (t.cy - G.box.cy) * 0.35, w: G.box.w + (t.w - G.box.w) * 0.2 } : t;
+  }
+  function drawCrop() {
+    const cv = $("gCrop"), g = cv.getContext("2d");
+    const W = cam.videoWidth, H = cam.videoHeight;
+    if (!W) { g.fillStyle = "#000"; g.fillRect(0, 0, cv.width, cv.height); return; }
+    // 還沒偵測到嘴巴時，先用畫面中下方（橢圓框裡嘴巴參考框的位置）
+    const box = G.box || { cx: W / 2, cy: H * 0.63, w: Math.min(W, H) * 0.42 };
+    const w = Math.min(box.w, W, H * 4 / 3), h = w * 0.75;
+    // 來源範圍限制在畫面內（Safari 對超出範圍的 drawImage 會畫不出來）
+    const sx = Math.max(0, Math.min(W - w, box.cx - w / 2)), sy = Math.max(0, Math.min(H - h, box.cy - h / 2));
+    g.drawImage(cam, sx, sy, w, h, 0, 0, cv.width, cv.height);
+  }
+  function cropLoop() {
+    if (!G.stream) return;
+    if (G.mouthOnly) drawCrop();
+    requestAnimationFrame(cropLoop);
+  }
+
   function stopCam() {
     if (G.recording) return;
     clearInterval(G.timer);
@@ -675,10 +725,11 @@
     li.querySelector(".ct").textContent = state == null ? CHECK_TEXT[k].ok : (CHECK_TEXT[k][state] || CHECK_TEXT[k].ok);
   }
   function checkTick() {
-    if (!G.stream || document.hidden) return;
+    if (!G.stream || document.hidden || G.recording) return;
     let r = null;
     try { r = LR.checkFrame(cam); } catch { r = null; }
     if (!r) return;
+    updateBox(r.box);
     const c = r.checks;
     setCheck("face", c.face ? (c.center === "ok" ? "ok" : "off") : "bad");
     setCheck("size", c.face ? c.size : null);
@@ -703,28 +754,47 @@
   }
   const speakMs = (p) => Math.max(1400, Math.min(3600, 800 + 330 * [...p].length));
 
+  const nextVideoFrame = (fn) => (cam.requestVideoFrameCallback ? cam.requestVideoFrameCallback(() => fn()) : requestAnimationFrame(() => fn()));
+
+  // 錄一段：同時逐格抓口型（用完整畫面），影片則依開關錄完整畫面或只錄嘴巴特寫
   async function recordOnce(phrase, speaker) {
-    const rec = new MediaRecorder(G.stream, { mimeType: REC_MIME, videoBitsPerSecond: 2500000 });
+    const mouthOnly = G.mouthOnly && G.cropStream;
+    const rec = new MediaRecorder(mouthOnly ? G.cropStream : G.stream, { mimeType: REC_MIME, videoBitsPerSecond: mouthOnly ? 1200000 : 2500000 });
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
     const stopped = new Promise((r) => (rec.onstop = r));
+    const samples = [];
+    let live = true;
+    const t0 = performance.now();
+    const step = () => {
+      if (!live) return;
+      let a = null;
+      try { a = LR.analyzeFrame(cam); } catch { a = null; }
+      const t = performance.now() - t0;
+      if (a && a.feature) { samples.push({ t, feature: a.feature, lips: a.lips }); updateBox(a.box); }
+      else samples.push({ t, feature: null });
+      nextVideoFrame(step);
+    };
     rec.start();
+    nextVideoFrame(step);
     cue("閉嘴", "still", 650);
     await LR.sleep(650);
-    if (G.stop) { rec.stop(); await stopped; return null; }
+    if (G.stop) { live = false; rec.stop(); await stopped; return null; }
     const ms = speakMs(phrase);
     cue(phrase, "speak", ms);
     await LR.sleep(ms);
     cue("閉嘴", "still", 600);
     await LR.sleep(600);
+    live = false;
     rec.stop();
     await stopped;
     cue("");
+    const pre = LR.fromLiveSamples(samples); // 抓不到臉會丟出錯誤
     const type = REC_MIME.split(";")[0];
     const ext = type === "video/mp4" ? "mp4" : "webm";
     const d = new Date(), p2 = (x) => String(x).padStart(2, "0");
     const name = `${phrase}_${speaker || "未填"}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}-${G.nextTake++}.${ext}`;
-    return new File([new Blob(chunks, { type })], name, { type });
+    return { file: new File([new Blob(chunks, { type })], name, { type }), pre, mouthOnly: !!mouthOnly };
   }
 
   $("gRec").addEventListener("click", async () => {
@@ -740,8 +810,12 @@
     try {
       for (const k of ["3", "2", "1"]) { if (G.stop) break; cue(k, "count"); await LR.sleep(700); }
       for (let i = 0; i < n && !G.stop; i++) {
-        const f = await recordOnce(G.phrase, speaker);
-        if (f) addTake(f, G.phrase, speaker);
+        try {
+          const r = await recordOnce(G.phrase, speaker);
+          if (r) addTake(r, G.phrase, speaker);
+        } catch (e) {
+          toast(`第 ${i + 1} 段沒錄好：${e.message}`, "warn", 6000);
+        }
         if (i < n - 1 && !G.stop) { cue(`休息一下・下一次 ${i + 2} / ${n}`, "rest", 1300); await LR.sleep(1300); }
       }
       cue(G.stop ? "已停止" : "完成！", "done");
@@ -756,8 +830,8 @@
   });
   $("gStop").addEventListener("click", () => { G.stop = true; });
 
-  function addTake(file, label, speaker) {
-    G.takes.push({ file, label, speaker, url: URL.createObjectURL(file) });
+  function addTake(r, label, speaker) {
+    G.takes.push({ file: r.file, pre: r.pre, mouthOnly: r.mouthOnly, label, speaker, url: URL.createObjectURL(r.file) });
     renderTakes();
   }
   function renderTakes() {
@@ -769,7 +843,8 @@
       const del = el("button", { class: "icon-btn", type: "button", "aria-label": "刪除這段", title: "刪除", text: "×" });
       del.addEventListener("click", () => { URL.revokeObjectURL(t.url); G.takes.splice(i, 1); renderTakes(); });
       return el("li", { class: "take" }, v,
-        el("div", { class: "take-info" }, el("strong", { text: t.label }), el("small", { text: `錄製者 ${t.speaker}・${LR.fmtSize(t.file.size)}・點影片播放` })), del);
+        el("div", { class: "take-info" }, el("strong", { text: t.label }),
+          el("small", { text: `錄製者 ${t.speaker}・${t.mouthOnly ? "只有嘴巴" : "完整畫面"}・${LR.fmtSize(t.file.size)}・✓ 口型已抓好` })), del);
     }));
   }
   $("gClear").addEventListener("click", () => {
@@ -781,7 +856,7 @@
     if (!G.takes.length) return;
     if (!LR.gh.connected()) { toast("要先登入才能上傳", "warn"); LR.openSettings(); return; }
     for (const t of G.takes) {
-      S.queue.push({ id: S.nextId++, file: t.file, label: t.label, speaker: t.speaker, checked: false, status: "pending", note: "" });
+      S.queue.push({ id: S.nextId++, file: t.file, pre: t.pre, label: t.label, speaker: t.speaker, checked: false, status: "pending", note: "" });
       URL.revokeObjectURL(t.url);
     }
     const n = G.takes.length;
