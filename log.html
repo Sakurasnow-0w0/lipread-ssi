@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a78d6">
+<title>日誌｜專題</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header id="appbar" class="appbar"></header>
+
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>日誌</h1>
+      <p class="lede">手寫的進度、會議紀錄、老師意見，加上系統自動記下的活動（誰上傳了什麼、改了哪個待辦），依日期排在同一條時間軸。</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn" id="reload">重新整理</button>
+    </div>
+  </div>
+
+  <section class="card empty" id="emptyState" hidden>
+    <div class="empty-icon" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9l3 3V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20V3.5Z"/><path d="M9 9h6M9 12.5h6M9 16h4"/></svg>
+    </div>
+    <h2>輸入通關碼後就能看到日誌</h2>
+    <p>日誌存在團隊共用的資料庫裡。</p>
+    <div class="actions"><button class="btn primary" id="emptyConnect">輸入通關碼</button></div>
+  </section>
+
+  <div id="page" class="layout" hidden>
+    <div class="col-main">
+      <div class="log-toolbar">
+        <div class="seg" role="tablist" aria-label="顯示" id="showSeg">
+          <button type="button" data-show="all" aria-selected="true">全部</button>
+          <button type="button" data-show="journal" aria-selected="false">手寫日誌</button>
+          <button type="button" data-show="system" aria-selected="false">系統活動</button>
+        </div>
+        <select class="input" id="typeFilter" aria-label="日誌類型">
+          <option value="">所有類型</option>
+        </select>
+      </div>
+      <div id="timeline" class="log-timeline" aria-live="polite"></div>
+      <div class="actions" style="justify-content:center;margin-top:16px">
+        <button class="btn" id="more" hidden>載入更早的系統活動</button>
+      </div>
+    </div>
+    <aside class="col-side">
+      <section class="card">
+        <div class="card-h"><h2>寫一篇日誌</h2><p>作者會自動填你登入時的名字。</p></div>
+        <form id="jForm">
+          <div class="field-row">
+            <div class="field"><label for="jType">類型</label>
+              <select class="input" id="jType" style="width:100%"></select></div>
+            <div class="field"><label for="jDate">日期</label><input class="input" id="jDate" type="date" required></div>
+          </div>
+          <div class="field"><label for="jTitle">標題</label><input class="input" id="jTitle" maxlength="80" required placeholder="例如：和老師討論詞表"></div>
+          <div class="field"><label for="jBody">內容</label><textarea class="input" id="jBody" rows="6" maxlength="5000" placeholder="做了什麼、決定了什麼、下一步…"></textarea></div>
+          <button class="btn primary" type="submit" id="jSubmit">發布</button>
+        </form>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2>統計</h2></div>
+        <dl class="stats" id="logStats"></dl>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script>
+(function () {
+  "use strict";
+  const { el, toast } = LR;
+  const $ = (id) => document.getElementById(id);
+  LR.mountHeader("log", { autoOpen: true });
+  LR.initTooltip();
+
+  const TYPES = { "進度": "📈", "會議": "👥", "老師意見": "🎓", "問題": "⚠️", "想法": "💡" };
+  const S = { journal: [], commits: [], page: 0, more: true, show: "all", type: "", busy: false };
+  $("jType").replaceChildren(...Object.keys(TYPES).map((t) => el("option", { value: t, text: `${TYPES[t]} ${t}` })));
+  $("typeFilter").append(...Object.keys(TYPES).map((t) => el("option", { value: t, text: t })));
+  const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  $("jDate").value = localDay(new Date());
+
+  function show(ready) { $("emptyState").hidden = ready; $("page").hidden = !ready; }
+
+  async function load() {
+    if (!LR.api.ready()) { show(false); return; }
+    show(true);
+    $("timeline").replaceChildren(el("p", { class: "empty-line", text: "讀取中…" }));
+    S.page = 0; S.commits = []; S.more = true;
+    try {
+      const [j] = await Promise.all([LR.api.loadJournal(), loadMore(true)]);
+      S.journal = j;
+      render();
+    } catch (e) {
+      toast(e.message, "bad", 8000);
+      $("timeline").replaceChildren(el("p", { class: "empty-line", text: "讀取失敗：" + e.message }));
+    }
+  }
+  async function loadMore(silent) {
+    if (!S.more) return;
+    const next = S.page + 1;
+    const list = await LR.api.commits(next);
+    S.page = next;
+    S.commits.push(...list);
+    S.more = list.length === 100;
+    if (!silent) render();
+  }
+
+  // ───────── 解析 commit 訊息成活動 ─────────
+  // 新增樣本：喝水（A）・訪客：小明 ／ 新增樣本：喝水（A） ／ 刪除樣本（小明） ／ 新增待辦：X・小明 …
+  function parseCommit(c) {
+    const msg = LR.cleanText(c.message, 200);
+    const t = Date.parse(c.date);
+    if (!Number.isFinite(t)) return null;
+    let m;
+    const base = { time: new Date(t), sha: c.sha };
+    if ((m = msg.match(/^新增樣本：(.+?)（(.*?)）(?:・(.+))?$/))) return Object.assign(base, { kind: "sample", label: m[1], actor: m[3] || c.login || "—" });
+    if ((m = msg.match(/^刪除樣本(?:：(.+?)（.*?）)?(?:（(.+?)）)?$/))) return Object.assign(base, { kind: "delete", label: m[1] || "", actor: m[2] || c.login || "—" });
+    if (/^新增日誌：/.test(msg)) return null; // 手寫日誌本身就會顯示
+    if ((m = msg.match(/^(新增待辦|完成待辦|取消完成|修改待辦|刪除待辦|設定專題截止日|清除專題截止日)(?:：(.+?))?・(.+)$/))) return Object.assign(base, { kind: "task", verb: m[1], what: m[2] || "", actor: m[3] });
+    if ((m = msg.match(/^刪除日誌（(.+)）$/))) return Object.assign(base, { kind: "other", text: "刪除了一篇日誌", actor: m[1] });
+    return Object.assign(base, { kind: "other", text: msg, actor: c.login || "—" });
+  }
+
+  // 同一天、同一個人、連續的「新增樣本」合併成一筆
+  function groupSystem(events) {
+    const out = [];
+    for (const e of events) {
+      const day = localDay(e.time);
+      const last = out[out.length - 1];
+      const key = e.kind === "sample" ? "sample" : e.kind === "task" ? "task:" + e.verb : "";
+      if (key && last && last.key === key && last.day === day && last.actor === e.actor) {
+        last.count++;
+        if (e.kind === "sample") last.labels.set(e.label, (last.labels.get(e.label) || 0) + 1);
+        else if (e.what) last.whats.push(e.what);
+        if (e.time < last.from) last.from = e.time;
+        continue;
+      }
+      out.push(Object.assign({}, e, { key, day, count: 1, labels: new Map(e.kind === "sample" ? [[e.label, 1]] : []), whats: e.what ? [e.what] : [], from: e.time }));
+    }
+    return out;
+  }
+
+  // ───────── 繪製 ─────────
+  const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+  function dayTitle(day) {
+    const [y, m, d] = day.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    const diff = Math.round((new Date(new Date().setHours(0, 0, 0, 0)) - dt) / 86400000);
+    const rel = diff === 0 ? "今天・" : diff === 1 ? "昨天・" : "";
+    return `${rel}${m} 月 ${d} 日（${WEEK[dt.getDay()]}）${y !== new Date().getFullYear() ? "・" + y : ""}`;
+  }
+  const hhmm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+  function render() {
+    const items = [];
+    if (S.show !== "system") {
+      for (const j of S.journal) {
+        if (S.type && j.type !== S.type) continue;
+        const t = Date.parse(j.createdAt);
+        items.push({ src: "journal", day: j.date || localDay(new Date(t)), sort: Number.isFinite(t) ? t : 0, j });
+      }
+    }
+    if (S.show !== "journal" && !S.type) {
+      const events = S.commits.map(parseCommit).filter(Boolean);
+      for (const g of groupSystem(events)) items.push({ src: "system", day: g.day, sort: g.time.getTime(), g });
+    }
+    items.sort((a, b) => b.day.localeCompare(a.day) || b.sort - a.sort);
+
+    const byDay = new Map();
+    for (const it of items) { if (!byDay.has(it.day)) byDay.set(it.day, []); byDay.get(it.day).push(it); }
+    const box = $("timeline");
+    if (!items.length) {
+      box.replaceChildren(el("p", { class: "empty-line", text: S.show === "system" ? "還沒有系統活動。" : "還沒有日誌，從右邊寫第一篇吧。" }));
+    } else {
+      box.replaceChildren(...[...byDay.entries()].map(([day, list], i) => el("section", { class: "log-day reveal", style: `transition-delay:${Math.min(i * 60, 400)}ms` },
+        el("h3", { class: "log-day-h", text: dayTitle(day) }),
+        el("ol", { class: "log-list" }, list.map((it) => (it.src === "journal" ? journalItem(it.j) : systemItem(it.g)))))));
+      setTimeout(() => box.querySelectorAll(".reveal").forEach((n) => n.classList.add("in")), 30);
+    }
+    $("more").hidden = !S.more || S.show === "journal" || !!S.type;
+    renderStats();
+  }
+
+  function journalItem(j) {
+    const canDel = LR.gh.canDelete();
+    const del = canDel ? el("button", { class: "btn ghost sm danger", type: "button", text: "刪除" }) : null;
+    if (del) del.addEventListener("click", async () => {
+      if (!confirm(`確定刪除日誌「${j.title}」？`)) return;
+      try { await LR.api.deleteJournal(j); S.journal = S.journal.filter((x) => x !== j); render(); toast("已刪除", "good"); }
+      catch (e) { toast(e.message, "bad"); }
+    });
+    return el("li", { class: "log-item journal" },
+      el("div", { class: "log-dot", "aria-hidden": "true", text: TYPES[j.type] || "📝" }),
+      el("article", { class: "log-card" },
+        el("div", { class: "log-card-h" },
+          el("span", { class: "badge accent", text: j.type || "日誌" }),
+          el("strong", { class: "log-title", text: j.title }),
+          del),
+        j.body ? el("div", { class: "log-body", text: j.body }) : null,
+        el("div", { class: "log-meta", text: `${j.author || "—"}・${Number.isFinite(Date.parse(j.createdAt)) ? hhmm(new Date(j.createdAt)) : ""}` })));
+  }
+
+  function systemItem(g) {
+    let text;
+    if (g.kind === "sample") {
+      const parts = [...g.labels.entries()].sort((a, b) => b[1] - a[1]).map(([l, n]) => `${l} ×${n}`);
+      text = `上傳了 ${g.count} 段樣本：${parts.slice(0, 6).join("、")}${parts.length > 6 ? "…" : ""}`;
+    } else if (g.kind === "delete") text = `刪除了一段樣本${g.label ? "：" + g.label : ""}`;
+    else if (g.kind === "task") {
+      const ws = g.whats.slice().reverse();
+      text = g.count > 1
+        ? `${g.verb} ${g.count} 項：${ws.slice(0, 4).map((w) => "「" + w + "」").join("、")}${ws.length > 4 ? "…" : ""}`
+        : `${g.verb}${g.whats[0] ? "「" + g.whats[0] + "」" : ""}`;
+    }
+    else text = g.text;
+    const time = g.count > 1 && hhmm(g.from) !== hhmm(g.time) ? `${hhmm(g.from)}–${hhmm(g.time)}` : hhmm(g.time);
+    const icon = { sample: "🎥", delete: "🗑", task: "✅" }[g.kind] || "•";
+    return el("li", { class: "log-item system" },
+      el("div", { class: "log-dot small", "aria-hidden": "true", text: icon }),
+      el("div", { class: "log-sys" }, el("strong", { text: g.actor }), " ", text, el("span", { class: "log-meta", text: "　" + time })));
+  }
+
+  function renderStats() {
+    const events = S.commits.map(parseCommit).filter(Boolean);
+    const samples = events.filter((e) => e.kind === "sample");
+    const week = Date.now() - 7 * 86400000;
+    const people = new Set(samples.map((e) => e.actor));
+    $("logStats").replaceChildren(
+      el("div", null, el("dt", { text: "手寫日誌" }), el("dd", { text: String(S.journal.length) })),
+      el("div", null, el("dt", { text: "近 7 天上傳" }), el("dd", { text: String(samples.filter((e) => e.time.getTime() >= week).length) })),
+      el("div", null, el("dt", { text: "上傳過的人" }), el("dd", { text: String(people.size) })));
+  }
+
+  // ───────── 事件 ─────────
+  $("jForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const entry = { type: $("jType").value, date: $("jDate").value, title: $("jTitle").value.trim(), body: $("jBody").value };
+    if (!entry.title) return;
+    $("jSubmit").disabled = true;
+    try {
+      await LR.api.addJournal(entry);
+      $("jTitle").value = ""; $("jBody").value = "";
+      toast("已發布", "good");
+      S.journal = await LR.api.loadJournal();
+      render();
+    } catch (err) { toast(err.message, "bad", 7000); }
+    finally { $("jSubmit").disabled = false; }
+  });
+  $("showSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-show]");
+    if (!b) return;
+    S.show = b.dataset.show;
+    for (const x of $("showSeg").querySelectorAll("button")) x.setAttribute("aria-selected", String(x === b));
+    $("typeFilter").disabled = S.show === "system";
+    render();
+  });
+  $("typeFilter").addEventListener("change", () => { S.type = $("typeFilter").value; render(); });
+  $("more").addEventListener("click", async () => {
+    $("more").disabled = true;
+    try { await loadMore(false); } catch (e) { toast(e.message, "bad"); } finally { $("more").disabled = false; }
+  });
+  $("reload").addEventListener("click", load);
+  $("emptyConnect").addEventListener("click", () => LR.openSettings());
+  LR.events.addEventListener("connection", load);
+  load();
+})();
+</script>
+</body>
+</html>

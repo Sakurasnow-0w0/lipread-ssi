@@ -23,7 +23,6 @@
     <div class="col-main">
       <div class="tabs" role="tablist" aria-label="輸入方式">
         <button role="tab" id="tabbtn-upload" aria-controls="tab-upload" aria-selected="true" data-tab="upload">上傳影片</button>
-        <button role="tab" id="tabbtn-batch" aria-controls="tab-batch" aria-selected="false" data-tab="batch">雲端資料夾</button>
         <button role="tab" id="tabbtn-recog" aria-controls="tab-recog" aria-selected="false" data-tab="recog">辨識測試</button>
       </div>
 
@@ -77,28 +76,6 @@
           <button class="btn primary lg" id="runUpload" disabled>開始處理</button>
           <button class="btn ghost danger" id="stopUpload" hidden>停止</button>
           <button class="btn ghost" id="clearDone" hidden>清除已完成</button>
-        </div>
-      </section>
-
-      <!-- 雲端資料夾（電腦版） -->
-      <section class="card" id="tab-batch" role="tabpanel" aria-labelledby="tabbtn-batch" hidden>
-        <div class="card-h">
-          <h2>匯入已在雲端的影片</h2>
-          <p>影片已經放在 Google 雲端硬碟裡時用這個：電腦裝好「Google 雲端硬碟」後選同步資料夾，系統依檔名自動標註、只抓口型，不重複上傳影片。（手機不支援選資料夾）</p>
-        </div>
-        <div class="naming">檔名格式 <code>念的內容_錄製者_編號.mp4</code> 例如 <code>我要喝水_A_01.mp4</code></div>
-        <div class="actions">
-          <button class="btn" id="pickFolder">選擇資料夾</button>
-          <input type="file" id="folderInput" webkitdirectory multiple hidden>
-          <button class="btn primary" id="runBatch" disabled>開始處理</button>
-          <button class="btn ghost danger" id="stopBatch" hidden>停止</button>
-        </div>
-        <div class="batch-summary" id="batchSummary"></div>
-        <div class="table-wrap" id="batchWrap" hidden>
-          <table class="table">
-            <thead><tr><th>檔案</th><th>念的內容</th><th>錄製者</th><th>狀態</th></tr></thead>
-            <tbody id="batchBody"></tbody>
-          </table>
         </div>
       </section>
 
@@ -201,8 +178,6 @@
     } finally {
       S.loading = false;
       renderLibrary();
-      markBatchExisting();
-      renderBatch();
     }
   }
   LR.events.addEventListener("connection", () => { refreshLibrary(); renderDriveOpt(); });
@@ -260,8 +235,6 @@
     $("runUpload").textContent = pending ? `開始處理 ${pending} 段` : "開始處理";
     $("clearDone").hidden = S.busy || !S.queue.some((q) => q.status === "done");
     $("runRecog").disabled = S.busy || !S.recog;
-    $("pickFolder").disabled = S.busy;
-    $("runBatch").disabled = S.busy || !S.batch.some((r) => r.status === "pending");
   }
 
   // ───────── 預覽 ─────────
@@ -438,101 +411,6 @@
       if (ok) toast(`完成 ${ok} 段${useDrive ? "（影片已存到雲端）" : ""}${fail ? `，失敗 ${fail} 段` : ""}`, fail ? "warn" : "good");
     }, () => setBadge("失敗", "bad"));
   });
-
-  // ───────── 雲端資料夾批次 ─────────
-  $("pickFolder").addEventListener("click", () => $("folderInput").click());
-  $("folderInput").addEventListener("change", () => {
-    const files = [...$("folderInput").files].filter(LR.isVideoFile);
-    $("folderInput").value = "";
-    if (!files.length) { toast("這個資料夾裡沒有影片", "warn"); return; }
-    files.sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, "zh-Hant"));
-    S.batch = files.map((file) => {
-      const p = LR.parseVideoName(file.name);
-      return { file, label: p.label, speaker: p.speaker, status: p.label ? "pending" : "invalid", note: p.label ? "" : "檔名格式不符" };
-    });
-    markBatchExisting();
-    renderBatch();
-  });
-
-  function markBatchExisting() {
-    const have = new Set(S.samples.map((s) => `${s.label}|${s.speaker}|${s.video.name}`));
-    for (const r of S.batch) {
-      const key = `${r.label}|${r.speaker}|${r.file.name}`;
-      if (r.status === "pending" && have.has(key)) r.status = "exists";
-      else if (r.status === "exists" && !have.has(key)) r.status = "pending";
-    }
-  }
-
-  const BSTATUS = {
-    pending: ["待處理", "muted"], exists: ["已在資料庫", "muted"], invalid: ["檔名不符", "warn"],
-    running: ["分析中", "accent"], done: ["完成", "good"], error: ["失敗", "bad"],
-  };
-  function renderBatch() {
-    $("batchWrap").hidden = !S.batch.length;
-    $("batchBody").replaceChildren(...S.batch.map((r) => {
-      const [text, kind] = BSTATUS[r.status];
-      const badge = el("span", { class: "badge " + kind, text: r.status === "error" ? `${text}：${r.note}` : text });
-      r.badge = badge;
-      return el("tr", null,
-        el("td", { class: "file", title: r.file.webkitRelativePath || r.file.name, text: r.file.name }),
-        el("td", { text: r.label || "—" }),
-        el("td", { text: r.speaker || "—" }),
-        el("td", null, badge));
-    }));
-    const c = {};
-    for (const r of S.batch) c[r.status] = (c[r.status] || 0) + 1;
-    $("batchSummary").replaceChildren(...(S.batch.length ? [
-      el("span", { class: "badge", text: `共 ${S.batch.length} 段` }),
-      c.pending ? el("span", { class: "badge accent", text: `待處理 ${c.pending}` }) : null,
-      c.exists ? el("span", { class: "badge muted", text: `已處理過 ${c.exists}` }) : null,
-      c.done ? el("span", { class: "badge good", text: `✓ 完成 ${c.done}` }) : null,
-      c.invalid ? el("span", { class: "badge warn", text: `▲ 檔名不符 ${c.invalid}` }) : null,
-      c.error ? el("span", { class: "badge bad", text: `! 失敗 ${c.error}` }) : null,
-    ].filter(Boolean) : []));
-    $("runBatch").textContent = c.pending ? `開始處理 ${c.pending} 段` : "開始處理";
-    updateButtons();
-  }
-
-  $("stopBatch").addEventListener("click", () => { S.stop = true; $("stopBatch").disabled = true; });
-  $("runBatch").addEventListener("click", () => guard(async () => {
-    S.stop = false;
-    $("stopBatch").hidden = false; $("stopBatch").disabled = false;
-    const connected = LR.gh.connected();
-    const offline = [];
-    try {
-      await LR.loadModel();
-      for (const r of S.batch) {
-        if (S.stop) break;
-        if (r.status !== "pending") continue;
-        r.status = "running"; renderBatch();
-        setBadge(r.file.name, "accent");
-        try {
-          const res = await LR.extract(r.file, {
-            video, canvas: overlay, shouldStop: () => S.stop,
-            onProgress: (p) => { onProgress(p); r.badge.textContent = `分析中 ${Math.round(p.i / p.n * 100)}%`; },
-          });
-          const sample = LR.newSample({ label: r.label, speaker: r.speaker, frames: res.frames, lips: res.lips, quality: res.quality, file: r.file, author: LR.whoami() });
-          if (connected) { r.badge.textContent = "上傳中"; await LR.gh.putSample(sample); S.samples.push(sample); }
-          else offline.push(sample);
-          r.status = "done";
-        } catch (e) {
-          if (S.stop) { r.status = "pending"; break; }
-          r.status = "error"; r.note = e.message;
-          if (e.status === 401 || e.status === 403) { renderBatch(); throw e; }
-        }
-        renderBatch();
-      }
-    } finally {
-      $("stopBatch").hidden = true;
-      S.weights = null;
-      if (offline.length) {
-        LR.download(`samples-${LR.newId()}.json`, JSON.stringify(offline));
-        toast(`尚未登入，已把 ${offline.length} 段下載成 JSON 檔`, "warn");
-      }
-      setBadge(S.stop ? "已停止" : "批次完成", S.stop ? "warn" : "good");
-      renderBatch(); renderLibrary();
-    }
-  }));
 
   // ───────── 辨識 ─────────
   function setRecog(f) {

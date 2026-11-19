@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a78d6">
+<title>系統架構｜專題</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header id="appbar" class="appbar"></header>
+
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>系統架構</h1>
+      <p class="lede">這個專題用到哪些技術、整體怎麼運作。心智圖和流程裡的每個方塊都可以點開看詳情。</p>
+    </div>
+  </div>
+
+  <div class="report-stack">
+    <section class="card reveal">
+      <div class="card-h">
+        <h2>一段影片走過的路</h2>
+        <p>從錄影到辨識出結果、唸出來的完整流程。</p>
+      </div>
+      <ol class="flow" id="flow"></ol>
+    </section>
+
+    <section class="card reveal">
+      <div class="card-h">
+        <h2>心智圖</h2>
+        <p>五大部分與底下用到的技術。點任何方塊看說明。</p>
+      </div>
+      <div class="mindmap" id="mindmap">
+        <svg class="mm-lines" id="mmLines" aria-hidden="true"></svg>
+        <div class="mm-root-row"><button class="mm-node mm-root" type="button" data-id="root" id="mmRoot"></button></div>
+        <div class="mm-branches" id="mmBranches"></div>
+      </div>
+    </section>
+
+    <section class="card reveal">
+      <div class="card-h">
+        <h2>技術清單</h2>
+        <p>做報告時可以直接引用。</p>
+      </div>
+      <div class="table-wrap"><table class="table" id="techTable"></table></div>
+    </section>
+  </div>
+</main>
+
+<dialog class="dialog drawer" id="detail" aria-labelledby="dTitle">
+  <div class="dialog-body">
+    <div class="card-h row">
+      <div>
+        <div class="eyebrow" id="dBranch"></div>
+        <h2 id="dTitle"></h2>
+        <p class="help" id="dSub"></p>
+      </div>
+      <button class="btn ghost sm" id="dClose" type="button">關閉</button>
+    </div>
+    <div id="dBody" class="detail-body"></div>
+    <div class="detail-nav" id="dNav"></div>
+  </div>
+</dialog>
+
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script>
+(function () {
+  "use strict";
+  const { el } = LR;
+  const $ = (id) => document.getElementById(id);
+  LR.mountHeader("arch");
+  LR.initTooltip();
+
+  // ───────── 內容 ─────────
+  // 每個節點：title 標題、sub 一句話、what 是什麼、how 在本專題怎麼用、why 為什麼選它、files 相關檔案、limits 限制、links 參考
+  const ROOT = {
+    id: "root", title: "無聲溝通系統", sub: "給失聲者用的唇語辨識",
+    what: "使用者對鏡頭無聲說出常用需求詞，系統辨識嘴型、轉成文字並用語音唸出來。屬於無聲語音介面（Silent Speech Interface）與視覺語音辨識（Visual Speech Recognition）。",
+    how: "整個系統是一個網站：辨識在使用者的瀏覽器裡完成，後端只負責存資料。資料分成兩份：影片放 Google 雲端硬碟，口型數據放 GitHub 私有 repo。",
+    why: "限定有限詞彙、個人化範本，是目前在專題規模下最可行的做法；任意句子的連續辨識連頂尖模型都還有明顯錯誤率。",
+    files: ["index.html", "report.html", "assets/core.js", "apps-script/Code.gs"],
+  };
+
+  const BRANCHES = [
+    {
+      id: "ui", title: "使用者介面", sub: "網站的五個分頁", color: 1,
+      children: [
+        { id: "input", title: "前台輸入", sub: "多段上傳、勾選批次標註、手機錄影",
+          what: "上傳或直接錄下口型影片，標註「念的內容」與錄製者。",
+          how: "可一次選多段，勾選後一起套用內容；手機會多一個「錄一段」按鈕開前鏡頭。每段影片在瀏覽器裡抓出口型後，影片送到雲端、數據存進 GitHub。iPhone 的檔名（IMG_0001）會被辨認出來，不會誤當成標註。",
+          files: ["index.html"], limits: "單段影片 15 秒、30 MB 以內。" },
+        { id: "recog", title: "辨識測試＋語音", sub: "找最像的內容並唸出來",
+          what: "上傳或錄一段新影片，系統跟資料庫所有範本比對，列出最像的前 5 名。",
+          how: "結果用瀏覽器內建的 Web Speech API（speechSynthesis，語言 zh-TW）唸出來，不需要額外服務。答對或修正後可以一鍵把這段加回資料庫。",
+          why: "Web Speech API 所有主流瀏覽器都支援，手機也能用，不用付費。", files: ["index.html"],
+          links: [["Web Speech API（MDN）", "https://developer.mozilla.org/zh-TW/docs/Web/API/Web_Speech_API"]] },
+        { id: "report", title: "後台報告", sub: "準確率、混淆矩陣、嘴型重播、匯出",
+          what: "讀取全部樣本，算出辨識準確率、哪些詞容易搞混、資料集是否平衡。",
+          how: "KPI 數字、長條圖、熱圖都是純 HTML/CSS 畫的，有進場動畫。嘴型重播用 Canvas 把每格嘴唇輪廓畫成動畫，可並排比較兩個詞。可匯出 CSV、Markdown、PDF、原始 JSON。",
+          files: ["report.html"] },
+        { id: "plan", title: "日程與日誌", sub: "團隊共用的待辦、倒數、工作紀錄",
+          what: "日程：待辦、截止日、專題總截止倒數。日誌：手寫進度與會議紀錄，加上系統自動記下的活動。",
+          how: "日程存成一個檔，修改時送「操作」到後端（新增、勾完成…），後端讀最新版本再套用，兩個人同時改不會互相覆蓋。日誌一篇一個檔；系統活動直接讀資料 repo 的 commit 紀錄。",
+          files: ["schedule.html", "log.html"] },
+      ],
+    },
+    {
+      id: "rec", title: "辨識技術", sub: "從影片到判斷結果", color: 2,
+      children: [
+        { id: "mediapipe", title: "MediaPipe Face Landmarker", sub: "Google 的臉部節點偵測模型",
+          what: "給一張影像，找出臉上 478 個 3D 節點，以及 52 個表情係數（blendshapes，例如 jawOpen 下巴張開程度）。",
+          how: "直接在瀏覽器裡跑（WebAssembly，能用 GPU 就用 GPU），影片不用上傳到伺服器做辨識。影片每秒取 25 格，每格獨立偵測，同一支影片每次結果都一樣。",
+          why: "免費、準、手機也跑得動；模型約 18 MB，第一次下載後瀏覽器會快取。",
+          files: ["assets/core.js（LR.loadModel、LR.extract）"], limits: "版本固定在 @mediapipe/tasks-vision 0.10.14。臉要正面、光線充足，側臉或出鏡的格子會抓不到。",
+          links: [["Face Landmarker 官方說明", "https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker"]] },
+        { id: "features", title: "20 維嘴部特徵", sub: "每格影像變成 20 個數字",
+          what: "16 個嘴部表情係數（左右成對取平均）＋ 4 個嘴型幾何量（嘴寬、內唇高、外唇高、張口比例），幾何量都除以兩眼距離。",
+          how: "左右成對平均讓影片左右翻轉不影響；除以兩眼距離讓離鏡頭遠近不影響。另外存嘴唇內外輪廓 40 點座標，只用來做嘴型重播動畫。",
+          files: ["assets/core.js（frameFeature、lipShape）"] },
+        { id: "pre", title: "前處理", sub: "扣掉個人差異、裁掉沒動的部分",
+          what: "每個人閉嘴時的嘴型本來就不同，所以把每一格都減去「開頭 5 格的平均嘴型」，只留下「動了多少」。",
+          how: "再算每格的動作量，前後動作量低於最大值 15% 的格子裁掉（保留前後 2 格緩衝），讓比對專注在真正在念的部分。所以錄影開頭要先閉嘴半秒。",
+          files: ["assets/core.js（preprocess）"] },
+        { id: "dtw", title: "DTW 動態時間校正", sub: "比較兩段長短不同的動作",
+          what: "Dynamic Time Warping：同一句話念快念慢，影格數不同。DTW 會找出兩段序列最佳的對齊方式，再算對齊後的總距離。",
+          how: "每格 20 維特徵先依全部樣本的標準差做標準化，再算歐氏距離；總距離除以兩段長度和，避免長影片吃虧。",
+          why: "不用訓練、資料少也能用，很適合專題初期展示可行性。",
+          files: ["assets/core.js（LR.dtw、LR.weights）"], limits: "比對次數跟範本數成正比；範本到上千段時會變慢。",
+          links: [["Dynamic time warping（Wikipedia）", "https://en.wikipedia.org/wiki/Dynamic_time_warping"]] },
+        { id: "knn", title: "1-NN 最近鄰分類", sub: "最像哪個範本，就判成那個內容",
+          what: "把新影片跟每個範本算 DTW 距離，距離最小的範本是什麼內容，就判成什麼內容。",
+          how: "辨識測試會列出每種內容的最近距離前 5 名。範本越多、涵蓋越多人，越準。",
+          limits: "只能認出資料庫裡已有的內容；換一個沒錄過範本的人，準確率通常明顯下降。" },
+        { id: "eval", title: "評估方法", sub: "留一法與跨錄製者",
+          what: "留一法：每次拿出一段當測試、其餘當範本，對應「使用者先錄好自己的範本」。跨錄製者：測試某人時只用其他人的範本，對應「新使用者沒錄範本直接用」。",
+          how: "後台先算出所有樣本兩兩之間的 DTW 距離，兩種評估都從這張距離表算出來，並畫出混淆矩陣看哪些詞容易搞混。",
+          files: ["assets/core.js（LR.distanceMatrix、LR.evaluate、LR.summarize）", "report.html"] },
+      ],
+    },
+    {
+      id: "be", title: "後端服務", sub: "Google Apps Script", color: 3,
+      children: [
+        { id: "gas", title: "Google Apps Script", sub: "免費、免架伺服器的後端",
+          what: "Google 提供的雲端 JavaScript 執行環境，部署成「網頁應用程式」後就有一個網址可以接收請求。",
+          how: "網站把影片、口型數據、日程操作送到這個網址；它以部署者的 Google 帳號存取雲端硬碟，用存在「指令碼屬性」的 GitHub token 寫入資料 repo。",
+          why: "不用租伺服器、不用信用卡；直接存取部署者的雲端硬碟，影片不必經過第三方。",
+          files: ["apps-script/Code.gs"], limits: "單次請求約 50 MB、執行 6 分鐘上限，所以影片限制 30 MB。",
+          links: [["Apps Script 網頁應用程式", "https://developers.google.com/apps-script/guides/web"]] },
+        { id: "auth", title: "身分驗證", sub: "通關碼、管理員密碼、GitHub token",
+          what: "三種身分：有團隊通關碼可以上傳、讀取、改日程；有管理員密碼另外可以刪除；開發者可用自己的 GitHub token。",
+          how: "密碼只存在 Apps Script 的指令碼屬性，網頁程式碼裡沒有。比對密碼時逐字比完才回應，不會因為前幾個字對了就回得比較快。GitHub token 身分會向 GitHub 確認對方有資料 repo 的寫入權限。",
+          files: ["apps-script/Code.gs（authorize_、verifyGitHub_）", "assets/core.js（LR.team、LR.mode）"] },
+        { id: "abuse", title: "防濫用", sub: "猜密碼鎖定、上傳次數上限",
+          what: "網址是公開的，所以要防止有人亂猜密碼或灌爆雲端空間。",
+          how: "密碼錯誤全站每分鐘超過 15 次就暫停一分鐘；上傳、存檔全站每分鐘最多 60 次；影片與樣本都有大小上限，樣本格式在後端再檢查一次。",
+          files: ["apps-script/Code.gs（failGate_、rate_、checkSample_）"] },
+        { id: "ghapi", title: "GitHub REST API", sub: "讀寫資料 repo",
+          what: "GitHub 提供的 HTTP API，可以讀檔案、建立 commit、列出 commit 紀錄。",
+          how: "存樣本用 Contents API（一段一個檔、一次一個 commit）；讀全部樣本先用 Trees API 列出清單，再用 Blobs API 一次抓 25 個；寫入時加鎖，避免兩人同時寫入造成衝突。",
+          files: ["apps-script/Code.gs（gh_、saveSample_、list_、blobs_）"],
+          links: [["GitHub REST API", "https://docs.github.com/zh/rest"]] },
+      ],
+    },
+    {
+      id: "data", title: "資料儲存", sub: "影片與數據分開放", color: 4,
+      children: [
+        { id: "repo", title: "GitHub 私有 repo", sub: "lipread-ssi-data",
+          what: "存口型數據（data/samples/）、手寫日誌（data/journal/）、日程（data/schedule.json）。",
+          how: "每段影片一個 JSON：每格 20 維特徵＋嘴唇輪廓座標，沒有影像。每次新增、刪除都是一個 commit，誰改了什麼都看得到，也能從歷史還原。",
+          why: "免費、有完整版本紀錄；資料是純文字，方便之後改用深度學習時直接拿來用。",
+          limits: "只有協作者與後端服務能存取。" },
+        { id: "drive", title: "Google 雲端硬碟", sub: "影片依內容自動分資料夾",
+          what: "原始影片存在部署者的雲端硬碟，例如「專題/喝水/喝水_A_20261119-153012.mov」。",
+          how: "後端收到影片後找（或建立）以「念的內容」命名的子資料夾再存進去。後台報告用雲端預覽網址播放；刪除樣本時影片移到垃圾桶，30 天內可還原。",
+          why: "影片有人臉，屬於個資；放在自己的雲端、只分享給團隊，比放在公開網路安全。" },
+        { id: "browser", title: "瀏覽器儲存", sub: "登入資訊與快取",
+          what: "localStorage／sessionStorage：記住通關碼和名字（可選）、樣本快取。",
+          how: "管理員密碼只放在 sessionStorage，關掉分頁就消失。樣本以內容雜湊（sha）當快取鍵，內容沒變就不重抓。",
+          limits: "換瀏覽器或清除網站資料就要重新輸入通關碼。" },
+      ],
+    },
+    {
+      id: "deploy", title: "部署與安全", sub: "怎麼上線、怎麼保護資料", color: 5,
+      children: [
+        { id: "pages", title: "GitHub Pages", sub: "免費的靜態網站託管",
+          what: "把 repo 裡的 HTML、CSS、JS 直接變成網站：sakurasnow-0w0.github.io/lipread-ssi",
+          how: "推送到 main 分支約 1 分鐘後自動更新；全程 HTTPS，手機才能使用相機錄影。",
+          why: "免費、免架設；私有 repo 要用 Pages 需要 GitHub Pro，所以程式 repo 設為公開、資料另放私有 repo。",
+          links: [["GitHub Pages", "https://pages.github.com/"]] },
+        { id: "split", title: "程式公開、資料私有", sub: "兩個 repo 分工",
+          what: "lipread-ssi（公開）只放網頁程式；lipread-ssi-data（私有）放所有資料。",
+          how: "公開 repo 推送前都會掃描，確認沒有 token、密碼或資料夾 ID。所有密碼都在 Apps Script 的指令碼屬性。" },
+        { id: "privacy", title: "個資保護", sub: "人臉影片的處理原則",
+          what: "影片含人臉，屬於可識別個人的資料。",
+          how: "辨識在使用者自己的瀏覽器完成；GitHub 只存數字特徵；影片資料夾只分享給團隊、不開放「知道連結的人」。專題階段由健康受試者模擬，若要找病人實測需經人體研究倫理審查（IRB）。" },
+        { id: "stack", title: "純 HTML／CSS／JavaScript", sub: "沒有框架、沒有建置步驟",
+          what: "整個前端只有幾個 HTML 檔、一個共用 JS、一個 CSS。",
+          how: "外部只載入 MediaPipe（版本固定）。所有使用者輸入都用 textContent 放進畫面，不用 innerHTML，避免被插入惡意程式碼；CSV 匯出會擋公式注入。",
+          why: "隊友不用學框架就能改；直接雙擊 HTML 也能在本機開。" },
+      ],
+    },
+  ];
+
+  const FLOW = [
+    { n: "1", title: "錄影／上傳", text: "手機前鏡頭錄或選影片，標註念的內容", node: "input" },
+    { n: "2", title: "抓臉部節點", text: "MediaPipe 每格找出 478 點與表情係數", node: "mediapipe" },
+    { n: "3", title: "變成口型數據", text: "每格 20 個數字，扣掉靜止嘴型", node: "features" },
+    { n: "4", title: "存起來", text: "影片進雲端資料夾，數據進 GitHub", node: "gas" },
+    { n: "5", title: "比對", text: "DTW 跟所有範本比，找最像的", node: "dtw" },
+    { n: "6", title: "唸出來", text: "辨識結果用語音唸給對方聽", node: "recog" },
+  ];
+
+  const TECH = [
+    ["臉部偵測", "MediaPipe Face Landmarker", "tasks-vision 0.10.14", "抓 478 個臉部節點與 52 個表情係數", "assets/core.js"],
+    ["序列比對", "DTW＋1-NN（自行實作）", "—", "比較口型序列、判斷內容", "assets/core.js"],
+    ["語音輸出", "Web Speech API", "瀏覽器內建", "把辨識結果唸出來", "index.html"],
+    ["前端", "HTML／CSS／JavaScript", "無框架", "所有頁面、圖表、動畫", "*.html、assets/"],
+    ["網站託管", "GitHub Pages", "—", "公開網址、HTTPS", "—"],
+    ["後端", "Google Apps Script", "V8 執行環境", "存影片、代寫 GitHub、驗證身分", "apps-script/Code.gs"],
+    ["資料庫", "GitHub 私有 repo＋REST API", "API 2022-11-28", "口型數據、日誌、日程", "lipread-ssi-data"],
+    ["影片儲存", "Google 雲端硬碟", "—", "原始影片，依內容分資料夾", "—"],
+  ];
+
+  // ───────── 建立畫面 ─────────
+  const all = new Map([["root", Object.assign({ branch: null }, ROOT)]]);
+  BRANCHES.forEach((b) => {
+    all.set(b.id, Object.assign({ branch: b, what: b.sub }, b));
+    b.children.forEach((c) => all.set(c.id, Object.assign({ branch: b }, c)));
+  });
+
+  $("flow").replaceChildren(...FLOW.map((f, i) => el("li", { class: "flow-step", style: `--i:${i}` },
+    el("button", { type: "button", class: "flow-btn", "data-id": f.node },
+      el("span", { class: "flow-n", text: f.n }),
+      el("strong", { text: f.title }),
+      el("span", { class: "flow-text", text: f.text })))));
+
+  $("mmRoot").replaceChildren(el("strong", { text: ROOT.title }), el("small", { text: ROOT.sub }));
+  $("mmBranches").replaceChildren(...BRANCHES.map((b, bi) => el("div", { class: "mm-branch", style: `--c:var(--c${b.color});--i:${bi}` },
+    el("button", { type: "button", class: "mm-node mm-head", "data-id": b.id }, el("strong", { text: b.title }), el("small", { text: b.sub })),
+    el("ul", { class: "mm-children" }, b.children.map((c, ci) => el("li", { style: `--j:${ci}` },
+      el("button", { type: "button", class: "mm-node mm-leaf", "data-id": c.id }, el("strong", { text: c.title }), el("small", { text: c.sub }))))))));
+
+  $("techTable").replaceChildren(
+    el("thead", null, el("tr", null, ...["類別", "技術", "版本", "用途", "相關檔案"].map((h) => el("th", { text: h })))),
+    el("tbody", null, TECH.map((r) => el("tr", null, r.map((v, i) => el("td", { class: i === 3 ? "wrap" : "", text: v }))))));
+
+  // 心智圖連線：根節點底部 → 各分支標題頂部
+  function drawLines() {
+    const svg = $("mmLines"), box = $("mindmap").getBoundingClientRect();
+    svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+    svg.setAttribute("width", box.width); svg.setAttribute("height", box.height);
+    const r = $("mmRoot").getBoundingClientRect();
+    const x0 = r.left + r.width / 2 - box.left, y0 = r.bottom - box.top;
+    const ns = "http://www.w3.org/2000/svg";
+    svg.replaceChildren();
+    const heads = [...document.querySelectorAll(".mm-head")];
+    const firstTop = Math.min(...heads.map((h) => h.getBoundingClientRect().top));
+    heads.forEach((h, i) => {
+      const hb = h.getBoundingClientRect();
+      if (hb.top - firstTop > 4) return; // 換到下一排的分支不畫線，避免穿過上一排
+      const x1 = hb.left + hb.width / 2 - box.left, y1 = hb.top - box.top;
+      const my = (y0 + y1) / 2;
+      const p = document.createElementNS(ns, "path");
+      p.setAttribute("d", `M${x0},${y0} C${x0},${my} ${x1},${my} ${x1},${y1}`);
+      p.setAttribute("class", "mm-path");
+      p.style.stroke = `var(--c${BRANCHES[i].color})`;
+      p.style.setProperty("--i", i);
+      svg.append(p);
+    });
+  }
+  new ResizeObserver(drawLines).observe($("mindmap"));
+  window.addEventListener("load", drawLines);
+
+  // ───────── 詳情 ─────────
+  const order = [...all.keys()];
+  function openDetail(id) {
+    const n = all.get(id);
+    if (!n) return;
+    document.querySelectorAll(".mm-node.active").forEach((x) => x.classList.remove("active"));
+    document.querySelectorAll(`.mm-node[data-id="${id}"]`).forEach((x) => x.classList.add("active"));
+    $("dBranch").textContent = n.branch && n.branch !== n ? n.branch.title : (n.id === "root" ? "總覽" : "分支");
+    $("dTitle").textContent = n.title;
+    $("dSub").textContent = n.sub || "";
+    const sec = (label, text) => (text ? el("section", null, el("h3", { text: label }), el("p", { text })) : null);
+    const body = [
+      sec("是什麼", n.what), sec("在這個專題怎麼用", n.how), sec("為什麼選它", n.why),
+      n.files && n.files.length ? el("section", null, el("h3", { text: "相關檔案" }), el("ul", { class: "chips-list" }, n.files.map((f) => el("li", null, el("code", { text: f }))))) : null,
+      sec("限制與注意", n.limits),
+      n.links && n.links.length ? el("section", null, el("h3", { text: "延伸閱讀" }), el("ul", null, n.links.map(([t, u]) => el("li", null, el("a", { href: u, target: "_blank", rel: "noopener noreferrer", text: t + " ↗" }))))) : null,
+    ];
+    if (n.children) body.push(el("section", null, el("h3", { text: "包含" }),
+      el("div", { class: "chips" }, n.children.map((c) => el("button", { type: "button", class: "chip", "data-id": c.id, text: c.title })))));
+    if (id === "root") body.push(el("section", null, el("h3", { text: "五大部分" }),
+      el("div", { class: "chips" }, BRANCHES.map((b) => el("button", { type: "button", class: "chip", "data-id": b.id, text: b.title })))));
+    $("dBody").replaceChildren(...body.filter(Boolean));
+    const i = order.indexOf(id);
+    const prev = order[(i - 1 + order.length) % order.length], next = order[(i + 1) % order.length];
+    $("dNav").replaceChildren(
+      el("button", { type: "button", class: "btn ghost sm", "data-id": prev, text: "← " + all.get(prev).title }),
+      el("button", { type: "button", class: "btn ghost sm", "data-id": next, text: all.get(next).title + " →" }));
+    if (!$("detail").open) $("detail").showModal();
+    $("detail").querySelector(".dialog-body").scrollTop = 0;
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-id]");
+    if (b && all.has(b.dataset.id)) openDetail(b.dataset.id);
+  });
+  $("dClose").addEventListener("click", () => $("detail").close());
+  $("detail").addEventListener("click", (e) => { if (e.target === $("detail")) $("detail").close(); });
+  $("detail").addEventListener("close", () => document.querySelectorAll(".mm-node.active").forEach((x) => x.classList.remove("active")));
+
+  // 進場動畫
+  setTimeout(() => {
+    document.querySelectorAll(".reveal").forEach((n) => n.classList.add("in"));
+    $("mindmap").classList.add("in");
+    drawLines();
+  }, 30);
+})();
+</script>
+</body>
+</html>

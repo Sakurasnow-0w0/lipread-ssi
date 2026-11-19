@@ -598,7 +598,7 @@
       if (LR.mode() === "github") return { token: LR.settings.token() };
       const t = LR.team.get() || {};
       const a = { code: t.code, name: t.name };
-      if ((action === "deleteSample" || action === "trash") && LR.team.adminCode()) a.adminCode = LR.team.adminCode();
+      if (["deleteSample", "trash", "journalDelete", "scheduleOp"].includes(action) && LR.team.adminCode()) a.adminCode = LR.team.adminCode();
       return a;
     },
     async call(payload, auth) {
@@ -791,6 +791,35 @@
     },
   };
 
+  // 日程、日誌、活動紀錄：兩種登入方式都經後端服務讀寫（後端用自己的 token 寫入）
+  LR.api = {
+    ready() { return !!LR.mode() && !!LR.drive.url(); },
+    async loadJournal() {
+      const l = await LR.drive.call({ action: "list", kind: "journal" });
+      const entries = (l.entries || []).filter((e) => /^data\/journal\/[A-Za-z0-9_-]{1,80}\.json$/.test(e.path || "") && /^[0-9a-f]{40}$/.test(e.sha || ""));
+      const need = entries.filter((e) => !cachedBlob(e.sha)).map((e) => e.sha);
+      for (let i = 0; i < need.length; i += 25) {
+        const shas = need.slice(i, i + 25);
+        const r = await LR.drive.call({ action: "blobs", shas });
+        for (const sha of shas) if (r.blobs && r.blobs[sha]) { try { putBlob(sha, b64decodeUtf8(r.blobs[sha])); } catch { /* 壞檔略過 */ } }
+      }
+      return entries.map((e) => {
+        const o = cachedBlob(e.sha);
+        if (!o || typeof o !== "object") return null;
+        return {
+          id: LR.cleanText(o.id, 80), type: LR.cleanText(o.type, 10), date: /^\d{4}-\d{2}-\d{2}$/.test(o.date || "") ? o.date : "",
+          title: LR.cleanText(o.title, 80), body: String(o.body || "").slice(0, 5000), author: LR.cleanText(o.author, 40),
+          createdAt: typeof o.createdAt === "string" ? o.createdAt : "", _path: e.path, _sha: e.sha,
+        };
+      }).filter((x) => x && x.title);
+    },
+    addJournal(entry) { return LR.drive.call({ action: "journalAdd", entry }); },
+    deleteJournal(e) { return LR.drive.call({ action: "journalDelete", path: e._path, sha: e._sha }); },
+    async commits(page) { return (await LR.drive.call({ action: "commits", page: page || 1 })).commits || []; },
+    async schedule() { return (await LR.drive.call({ action: "schedule" })).schedule; },
+    async scheduleOp(op) { return (await LR.drive.call({ action: "scheduleOp", op })).schedule; },
+  };
+
   LR.gh = {
     connected() { return !!LR.mode(); },
     canDelete() { const m = LR.mode(); return m === "github" || (m === "team" && !!LR.team.adminCode()); },
@@ -938,9 +967,11 @@
       LR.el("div", { class: "appbar-inner" },
         LR.el("a", { class: "brand", href: "index.html" },
           LR.el("span", { class: "brand-mark", "aria-hidden": "true" }, mouthIcon()),
-          LR.el("span", { class: "brand-text" }, LR.el("strong", { text: "無聲溝通" }), LR.el("small", { text: "唇語辨識專題" }))
+          LR.el("span", { class: "brand-text" }, LR.el("strong", { text: "專題" }))
         ),
-        LR.el("nav", { class: "nav", "aria-label": "頁面" }, link("index.html", "input", "前台輸入"), link("report.html", "report", "後台報告")),
+        LR.el("nav", { class: "nav", "aria-label": "頁面" },
+          link("index.html", "input", "前台輸入"), link("report.html", "report", "後台報告"),
+          link("schedule.html", "schedule", "日程"), link("log.html", "log", "日誌"), link("architecture.html", "arch", "架構")),
         chip
       )
     );

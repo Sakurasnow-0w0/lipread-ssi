@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a78d6">
+<title>日程｜專題</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header id="appbar" class="appbar"></header>
+
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>日程</h1>
+      <p class="lede">專題總截止倒數、各項待辦與截止日。大家看到的是同一份，勾完成會即時存起來。</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn" id="reload">重新整理</button>
+    </div>
+  </div>
+
+  <section class="card empty" id="emptyState" hidden>
+    <div class="empty-icon" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4m8-4v4"/></svg>
+    </div>
+    <h2>輸入通關碼後就能看到日程</h2>
+    <p>日程存在團隊共用的資料庫裡。</p>
+    <div class="actions"><button class="btn primary" id="emptyConnect">輸入通關碼</button></div>
+  </section>
+
+  <div id="page" class="report-stack" hidden>
+    <!-- 總截止倒數 -->
+    <section class="card countdown-card reveal" id="finalCard">
+      <div class="cd-head">
+        <div>
+          <div class="eyebrow" id="finalEyebrow">專題總截止</div>
+          <h2 class="cd-title" id="finalTitle">尚未設定</h2>
+          <p class="help" id="finalDate"></p>
+        </div>
+        <button class="btn sm" id="editFinal" type="button">設定截止日</button>
+      </div>
+      <div class="cd-digits" id="cdDigits" aria-live="off">
+        <div><span id="cdD">—</span><small>天</small></div>
+        <div><span id="cdH">—</span><small>時</small></div>
+        <div><span id="cdM">—</span><small>分</small></div>
+        <div><span id="cdS">—</span><small>秒</small></div>
+      </div>
+      <div class="cd-progress" id="cdProgressWrap" hidden>
+        <div class="cd-progress-bar"><span id="cdProgress"></span></div>
+        <div class="cd-progress-meta"><span id="cdDone"></span><span id="cdLeft"></span></div>
+      </div>
+    </section>
+
+    <!-- 時間軸 -->
+    <section class="card reveal" id="timelineCard">
+      <div class="card-h">
+        <h2>時間軸</h2>
+        <p>從今天到專題截止，未完成待辦的截止日分布。滑過圓點看內容。</p>
+      </div>
+      <div class="tl" id="timeline"></div>
+    </section>
+
+    <div class="layout">
+      <div class="col-main">
+        <section class="card reveal">
+          <div class="card-h row">
+            <div><h2>待辦</h2><p id="taskSummary"></p></div>
+          </div>
+          <div id="taskGroups"></div>
+          <details class="done-box" id="doneBox">
+            <summary id="doneSummary">已完成</summary>
+            <ul class="tasks" id="doneList"></ul>
+          </details>
+        </section>
+      </div>
+      <aside class="col-side">
+        <section class="card">
+          <div class="card-h"><h2>新增待辦</h2></div>
+          <form id="addForm">
+            <div class="field"><label for="tTitle">要做什麼</label><input class="input" id="tTitle" maxlength="80" placeholder="例如：錄第一批影片（2 人 × 6 句）" required></div>
+            <div class="field-row">
+              <div class="field"><label for="tDue">截止日</label><input class="input" id="tDue" type="date"></div>
+              <div class="field"><label for="tOwner">負責人</label><input class="input" id="tOwner" maxlength="20" list="ownerList" placeholder="選填"></div>
+            </div>
+            <datalist id="ownerList"></datalist>
+            <div class="field"><label for="tNote">備註</label><input class="input" id="tNote" maxlength="300" placeholder="選填"></div>
+            <button class="btn primary" type="submit" id="addBtn">新增</button>
+          </form>
+        </section>
+        <section class="card">
+          <div class="card-h"><h2>說明</h2></div>
+          <ul class="plain-list">
+            <li>有通關碼就能新增、修改、勾完成</li>
+            <li>刪除待辦、設定總截止日需要管理員密碼（右上角「我是管理員」）</li>
+            <li>每次變更都會留下紀錄，可以在「日誌」看到誰改了什麼</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<dialog class="dialog" id="taskDlg" aria-labelledby="taskDlgTitle">
+  <form class="dialog-body" id="taskForm" method="dialog">
+    <div class="dialog-h"><h2 id="taskDlgTitle">修改待辦</h2></div>
+    <div class="field"><label for="eTitle">要做什麼</label><input class="input" id="eTitle" maxlength="80" required></div>
+    <div class="field-row">
+      <div class="field"><label for="eDue">截止日</label><input class="input" id="eDue" type="date"></div>
+      <div class="field"><label for="eOwner">負責人</label><input class="input" id="eOwner" maxlength="20" list="ownerList"></div>
+    </div>
+    <div class="field"><label for="eNote">備註</label><input class="input" id="eNote" maxlength="300"></div>
+    <div class="dialog-actions">
+      <button class="btn ghost danger" type="button" id="eDelete">刪除</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" type="button" id="eCancel">取消</button>
+      <button class="btn primary" type="submit">儲存</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dialog" id="finalDlg" aria-labelledby="finalDlgTitle">
+  <form class="dialog-body" id="finalForm" method="dialog">
+    <div class="dialog-h"><h2 id="finalDlgTitle">設定專題總截止</h2><p class="help">需要管理員密碼。</p></div>
+    <div class="field"><label for="fTitle">名稱</label><input class="input" id="fTitle" maxlength="60" placeholder="例如：期末報告繳交"></div>
+    <div class="field"><label for="fAt">截止時間</label><input class="input" id="fAt" type="datetime-local" required></div>
+    <div class="dialog-actions">
+      <button class="btn ghost danger" type="button" id="fClear">清除</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" type="button" id="fCancel">取消</button>
+      <button class="btn primary" type="submit">儲存</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script>
+(function () {
+  "use strict";
+  const { el, toast } = LR;
+  const $ = (id) => document.getElementById(id);
+  LR.mountHeader("schedule", { autoOpen: true });
+  LR.initTooltip();
+
+  const S = { sch: { final: null, tasks: [] }, busy: false, timer: 0 };
+  const DAY = 86400000;
+  const pad = (n) => String(n).padStart(2, "0");
+  const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+  const parseDay = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+  const fmtDay = (s) => { const d = parseDay(s); return `${d.getMonth() + 1}/${d.getDate()}（${WEEK[d.getDay()]}）`; };
+  const daysLeft = (s) => Math.round((parseDay(s) - today0()) / DAY);
+  const isAdmin = () => LR.mode() === "github" || !!LR.team.adminCode();
+
+  function show(ready) {
+    $("emptyState").hidden = ready;
+    $("page").hidden = !ready;
+  }
+
+  async function load() {
+    if (!LR.api.ready()) { show(false); return; }
+    show(true);
+    $("taskSummary").textContent = "讀取中…";
+    try {
+      S.sch = normalize(await LR.api.schedule());
+      render();
+    } catch (e) {
+      toast(e.message, "bad", 8000);
+      $("taskSummary").textContent = "讀取失敗：" + e.message;
+    }
+  }
+  function normalize(s) {
+    s = s && typeof s === "object" ? s : {};
+    const tasks = Array.isArray(s.tasks) ? s.tasks.filter((t) => t && typeof t.id === "string").map((t) => ({
+      id: LR.cleanText(t.id, 20), title: LR.cleanText(t.title, 80), due: /^\d{4}-\d{2}-\d{2}$/.test(t.due || "") ? t.due : "",
+      owner: LR.cleanText(t.owner, 20), note: LR.cleanText(t.note, 300), done: !!t.done,
+      doneAt: typeof t.doneAt === "string" ? t.doneAt : "", doneBy: LR.cleanText(t.doneBy, 40), createdBy: LR.cleanText(t.createdBy, 40),
+    })) : [];
+    const f = s.final && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s.final.at || "") ? { at: s.final.at, title: LR.cleanText(s.final.title, 60) || "專題截止" } : null;
+    return { final: f, tasks };
+  }
+
+  async function op(o, okMsg) {
+    if (S.busy) return;
+    S.busy = true;
+    try {
+      S.sch = normalize(await LR.api.scheduleOp(o));
+      render();
+      if (okMsg) toast(okMsg, "good");
+      return true;
+    } catch (e) {
+      toast(e.message, "bad", 7000);
+      render(); // 失敗時把勾選框還原
+      return false;
+    } finally { S.busy = false; }
+  }
+
+  // ───────── 倒數 ─────────
+  function tick() {
+    const f = S.sch.final;
+    if (!f) {
+      ["cdD", "cdH", "cdM", "cdS"].forEach((id) => ($(id).textContent = "—"));
+      return;
+    }
+    const end = new Date(f.at).getTime();
+    let ms = end - Date.now();
+    const past = ms < 0;
+    $("finalCard").classList.toggle("past", past);
+    $("finalEyebrow").textContent = past ? "專題總截止（已過）" : "專題總截止倒數";
+    ms = Math.abs(ms);
+    const d = Math.floor(ms / DAY), h = Math.floor(ms / 3600000) % 24, m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
+    $("cdD").textContent = d; $("cdH").textContent = pad(h); $("cdM").textContent = pad(m); $("cdS").textContent = pad(s);
+  }
+
+  // ───────── 繪製 ─────────
+  function render() {
+    const f = S.sch.final;
+    $("finalTitle").textContent = f ? f.title : "尚未設定";
+    $("finalDate").textContent = f ? new Date(f.at).toLocaleString("zh-TW", { year: "numeric", month: "long", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }) : "管理員可以按右邊按鈕設定";
+    $("editFinal").hidden = !isAdmin();
+    tick();
+    clearInterval(S.timer);
+    S.timer = setInterval(tick, 1000);
+
+    const tasks = S.sch.tasks;
+    const open = tasks.filter((t) => !t.done), done = tasks.filter((t) => t.done);
+    const n = tasks.length;
+    $("cdProgressWrap").hidden = !n;
+    if (n) {
+      $("cdProgress").style.width = (done.length / n * 100).toFixed(1) + "%";
+      $("cdDone").textContent = `已完成 ${done.length} / ${n} 項`;
+      $("cdLeft").textContent = open.length ? `還有 ${open.length} 項` : "全部完成！";
+    }
+
+    const owners = [...new Set(tasks.map((t) => t.owner).filter(Boolean))];
+    $("ownerList").replaceChildren(...owners.map((o) => el("option", { value: o })));
+
+    const groups = [
+      { key: "overdue", title: "已逾期", icon: "!", kind: "bad", test: (t) => t.due && daysLeft(t.due) < 0 },
+      { key: "soon", title: "7 天內到期", icon: "▲", kind: "warn", test: (t) => t.due && daysLeft(t.due) >= 0 && daysLeft(t.due) <= 7 },
+      { key: "later", title: "之後", icon: "", kind: "", test: (t) => t.due && daysLeft(t.due) > 7 },
+      { key: "nodate", title: "沒有截止日", icon: "", kind: "", test: (t) => !t.due },
+    ];
+    const byDue = (a, b) => (a.due || "9999").localeCompare(b.due || "9999") || a.title.localeCompare(b.title, "zh-Hant");
+    $("taskGroups").replaceChildren(...groups.map((g) => {
+      const items = open.filter(g.test).sort(byDue);
+      if (!items.length) return null;
+      return el("div", { class: "task-group" },
+        el("h3", { class: "subh " + (g.kind ? "tg-" + g.kind : "") }, g.icon ? el("span", { class: "tg-icon", "aria-hidden": "true", text: g.icon }) : null, `${g.title}（${items.length}）`),
+        el("ul", { class: "tasks" }, items.map(taskRow)));
+    }).filter(Boolean));
+    if (!open.length) $("taskGroups").replaceChildren(el("p", { class: "empty-line", text: n ? "所有待辦都完成了 🎉" : "還沒有待辦，從右邊新增第一項吧。" }));
+    $("taskSummary").textContent = n ? `${open.length} 項未完成、${done.length} 項已完成` : "";
+    $("doneBox").hidden = !done.length;
+    $("doneSummary").textContent = `已完成（${done.length}）`;
+    $("doneList").replaceChildren(...done.sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || "")).map(taskRow));
+    renderTimeline(open);
+    document.querySelectorAll(".reveal:not(.in)").forEach((n) => n.classList.add("in"));
+  }
+
+  function dueText(t) {
+    if (!t.due) return "";
+    const d = daysLeft(t.due);
+    const rel = d < 0 ? `逾期 ${-d} 天` : d === 0 ? "今天" : d === 1 ? "明天" : `剩 ${d} 天`;
+    return `${fmtDay(t.due)}・${rel}`;
+  }
+
+  function taskRow(t) {
+    const cb = el("input", { type: "checkbox", "aria-label": (t.done ? "取消完成：" : "標記完成：") + t.title });
+    cb.checked = t.done;
+    cb.addEventListener("change", () => op({ type: "toggleTask", id: t.id, done: cb.checked }, cb.checked ? `完成「${t.title}」` : null));
+    const d = t.due ? daysLeft(t.due) : null;
+    const dueCls = t.done ? "muted" : d == null ? "" : d < 0 ? "bad" : d <= 7 ? "warn" : "";
+    const meta = el("div", { class: "task-meta" },
+      t.due ? el("span", { class: "badge " + dueCls, text: (dueCls === "bad" ? "! " : dueCls === "warn" ? "▲ " : "") + dueText(t) }) : null,
+      t.owner ? el("span", { class: "badge", text: "👤 " + t.owner }) : null,
+      t.done && t.doneBy ? el("span", { class: "task-by", text: `由 ${t.doneBy} 完成` }) : null);
+    const edit = el("button", { class: "btn ghost sm", type: "button", text: "修改" });
+    edit.addEventListener("click", () => openEdit(t));
+    return el("li", { class: "task" + (t.done ? " done" : "") },
+      cb,
+      el("div", { class: "task-body" }, el("div", { class: "task-title", text: t.title }), t.note ? el("div", { class: "task-note", text: t.note }) : null, meta),
+      edit);
+  }
+
+  function renderTimeline(open) {
+    const box = $("timeline");
+    const f = S.sch.final;
+    const dated = open.filter((t) => t.due);
+    $("timelineCard").hidden = !f && !dated.length;
+    if ($("timelineCard").hidden) return;
+    const start = today0().getTime();
+    const ends = dated.map((t) => parseDay(t.due).getTime());
+    if (f) ends.push(new Date(f.at).getTime());
+    const minT = Math.min(start, ...ends), maxT = Math.max(start + DAY, ...ends);
+    const span = maxT - minT || DAY;
+    const x = (t) => ((t - minT) / span) * 100;
+    const marks = [];
+    marks.push(el("div", { class: "tl-today", style: `left:${x(start)}%` }, el("span", { text: "今天" })));
+    if (f) marks.push(el("div", { class: "tl-final", style: `left:${x(new Date(f.at).getTime())}%`, tabindex: "0", "data-tip": `${f.title}\n${f.at.replace("T", " ")}` }, el("span", { text: "🏁 " + f.title })));
+    dated.forEach((t, i) => {
+      const dl = daysLeft(t.due);
+      marks.push(el("button", {
+        type: "button", class: "tl-dot" + (dl < 0 ? " bad" : dl <= 7 ? " warn" : ""), style: `left:${x(parseDay(t.due).getTime())}%;--row:${i % 3}`,
+        "data-tip": `${t.title}\n${dueText(t)}${t.owner ? "\n負責：" + t.owner : ""}`, "aria-label": `${t.title}，${dueText(t)}`,
+      }));
+    });
+    // 月份刻度
+    const ticks = [];
+    const d0 = new Date(minT); d0.setDate(1); d0.setMonth(d0.getMonth() + 1);
+    for (let d = d0; d.getTime() < maxT && ticks.length < 24; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+      ticks.push(el("div", { class: "tl-tick", style: `left:${x(d.getTime())}%` }, el("span", { text: `${d.getMonth() + 1} 月` })));
+    }
+    box.replaceChildren(el("div", { class: "tl-line" }), ...ticks, ...marks);
+  }
+
+  // ───────── 表單 ─────────
+  $("addForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = LR.cleanText($("tTitle").value, 80);
+    if (!title) return;
+    op({ type: "addTask", title, due: $("tDue").value, owner: $("tOwner").value, note: $("tNote").value }, `已新增「${title}」`)
+      .then((ok) => { if (ok) { $("tTitle").value = ""; $("tNote").value = ""; } });
+  });
+
+  let editing = null;
+  function openEdit(t) {
+    editing = t;
+    $("eTitle").value = t.title; $("eDue").value = t.due; $("eOwner").value = t.owner; $("eNote").value = t.note;
+    $("eDelete").hidden = !isAdmin();
+    $("taskDlg").showModal();
+  }
+  $("eCancel").addEventListener("click", () => $("taskDlg").close());
+  $("taskForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    $("taskDlg").close();
+    op({ type: "editTask", id: editing.id, title: $("eTitle").value, due: $("eDue").value, owner: $("eOwner").value, note: $("eNote").value }, "已儲存");
+  });
+  $("eDelete").addEventListener("click", () => {
+    if (!confirm(`確定刪除「${editing.title}」？`)) return;
+    $("taskDlg").close();
+    op({ type: "deleteTask", id: editing.id }, "已刪除");
+  });
+
+  $("editFinal").addEventListener("click", () => {
+    const f = S.sch.final;
+    $("fTitle").value = f ? f.title : "";
+    $("fAt").value = f ? f.at : "";
+    $("finalDlg").showModal();
+  });
+  $("fCancel").addEventListener("click", () => $("finalDlg").close());
+  $("finalForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    $("finalDlg").close();
+    op({ type: "setFinal", at: $("fAt").value.slice(0, 16), title: $("fTitle").value }, "已設定專題截止日");
+  });
+  $("fClear").addEventListener("click", () => {
+    if (!confirm("確定清除專題截止日？")) return;
+    $("finalDlg").close();
+    op({ type: "setFinal", clear: true }, "已清除");
+  });
+
+  $("reload").addEventListener("click", load);
+  $("emptyConnect").addEventListener("click", () => LR.openSettings());
+  LR.events.addEventListener("connection", load);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && LR.api.ready()) load(); });
+  load();
+})();
+</script>
+</body>
+</html>
