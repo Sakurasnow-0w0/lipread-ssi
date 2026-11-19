@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a78d6">
-<title>系統架構｜專題</title>
+<meta name="theme-color" content="#f3eee5">
+<title>系統架構｜唇語專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -98,7 +98,7 @@
     {
       id: "ui", title: "使用者介面", sub: "網站的五個分頁", color: 1,
       children: [
-        { id: "input", title: "前台輸入", sub: "多段上傳、勾選批次標註、手機錄影",
+        { id: "input", title: "錄影頁（前台）", sub: "多段上傳、勾選批次標註、手機錄影",
           what: "上傳或直接錄下口型影片，標註「念的內容」與錄製者。",
           how: "可一次選多段，勾選後一起套用內容；手機會多一個「錄一段」按鈕開前鏡頭。每段影片在瀏覽器裡抓出口型後，影片送到雲端、數據存進 GitHub。iPhone 的檔名（IMG_0001）會被辨認出來，不會誤當成標註。",
           files: ["index.html"], limits: "單段影片 15 秒、30 MB 以內。" },
@@ -107,7 +107,7 @@
           how: "結果用瀏覽器內建的 Web Speech API（speechSynthesis，語言 zh-TW）唸出來，不需要額外服務。答對或修正後可以一鍵把這段加回資料庫。",
           why: "Web Speech API 所有主流瀏覽器都支援，手機也能用，不用付費。", files: ["index.html"],
           links: [["Web Speech API（MDN）", "https://developer.mozilla.org/zh-TW/docs/Web/API/Web_Speech_API"]] },
-        { id: "report", title: "後台報告", sub: "準確率、混淆矩陣、嘴型重播、匯出",
+        { id: "report", title: "報告頁（後台）", sub: "準確率、混淆矩陣、嘴型重播、匯出",
           what: "讀取全部樣本，算出辨識準確率、哪些詞容易搞混、資料集是否平衡。",
           how: "KPI 數字、長條圖、熱圖都是純 HTML/CSS 畫的，有進場動畫。嘴型重播用 Canvas 把每格嘴唇輪廓畫成動畫，可並排比較兩個詞。可匯出 CSV、Markdown、PDF、原始 JSON。",
           files: ["report.html"] },
@@ -184,7 +184,7 @@
           limits: "只有協作者與後端服務能存取。" },
         { id: "drive", title: "Google 雲端硬碟", sub: "影片依內容自動分資料夾",
           what: "原始影片存在部署者的雲端硬碟，例如「專題/喝水/喝水_A_20261119-153012.mov」。",
-          how: "後端收到影片後找（或建立）以「念的內容」命名的子資料夾再存進去。後台報告用雲端預覽網址播放；刪除樣本時影片移到垃圾桶，30 天內可還原。",
+          how: "後端收到影片後找（或建立）以「念的內容」命名的子資料夾再存進去。報告頁用雲端預覽網址播放；刪除樣本時影片移到垃圾桶，30 天內可還原。",
           why: "影片有人臉，屬於個資；放在自己的雲端、只分享給團隊，比放在公開網路安全。" },
         { id: "browser", title: "瀏覽器儲存", sub: "登入資訊與快取",
           what: "localStorage／sessionStorage：記住通關碼和名字（可選）、樣本快取。",

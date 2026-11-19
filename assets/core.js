@@ -36,6 +36,8 @@
   const UPLOAD_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,200}\/exec$/;
 
   const LR = (window.LR = { FPS, MAX_SECONDS, MAX_LABEL, MAX_SPEAKER, DIM, MAX_VIDEO_BYTES, events: new EventTarget() });
+  LR.BRAND = "唇語專題";
+  LR.BRAND_SUB = "無聲口型資料收集";
 
   // ───────────────────────── 小工具 ─────────────────────────
   LR.el = function (tag, props, ...kids) {
@@ -106,16 +108,123 @@
   };
   LR.store = store;
 
+  // ───────────────────────── 圖示（線條 SVG，取代 emoji） ─────────────────────────
+  // 路徑全部是寫死在這裡的常數，不含任何外部字串，所以可以安全地放進 SVG
+  const ICONS = {
+    camera: '<path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.5-2h6l1.5 2h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.5"/>',
+    video: '<rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/>',
+    shuffle: '<path d="M16 4h4v4M4 20 20 4M20 16v4h-4M15 15l5 5M4 4l5 5"/>',
+    book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2zm0 0A2 2 0 0 0 6 22h14"/>',
+    star: '<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+    rec: '<circle cx="12" cy="12" r="6.5" fill="currentColor" stroke="none"/>',
+    stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/>',
+    cloud: '<path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6a4.5 4.5 0 0 1 .2 9.9z"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
+    flag: '<path d="M5 21V4m0 0h11.5l-2 4.2 2 4.3H5"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/>',
+    cap: '<path d="m2 9 10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6"/>',
+    alert: '<path d="M12 3.5 2.5 20h19zM12 10v4.5M12 17.4v.1"/>',
+    bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+    trend: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+    lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
+    target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+    shield: '<path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6z"/><path d="m9 12 2 2 4-4"/>',
+    ban: '<circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/>',
+    lips: '<path d="M3 12c2.5-3.2 5.2-4.5 7-3.6.8.4 1.2.4 2 0 1.8-.9 4.5.4 7 3.6-2.6 3.6-5.6 5.2-9 5.2S5.6 15.6 3 12Zm2.6 0c2 1.1 4.2 1.6 6.4 1.6s4.4-.5 6.4-1.6"/>',
+    micoff: '<path d="M9 9v2a3 3 0 0 0 5.1 2.1M15 10V5a3 3 0 0 0-5.9-.7M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.6 2.8M12 18v3M3 3l18 18"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>',
+    play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+    upload: '<path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>',
+    face: '<circle cx="12" cy="12" r="8.5"/><path d="M9 10h.01M15 10h.01M8.5 14.5c2 1.8 5 1.8 7 0"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>',
+    ruler: '<path d="M3 16 16 3l5 5L8 21zM7 12l2 2M10 9l2 2M13 6l2 2"/>',
+    info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 7.6v.1"/>',
+    speaker: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  };
+  LR.icon = function (name, size) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", String(size || 18));
+    svg.setAttribute("height", String(size || 18));
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.8");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "ico");
+    svg.innerHTML = ICONS[name] || ICONS.info; // 常數字串，見上方說明
+    return svg;
+  };
+  /** 把頁面上 <span data-icon="camera"></span> 換成 SVG 圖示 */
+  LR.hydrateIcons = function (root) {
+    (root || document).querySelectorAll("[data-icon]:not([data-icon-done])").forEach((n) => {
+      n.prepend(LR.icon(n.dataset.icon, Number(n.dataset.iconSize) || undefined));
+      n.setAttribute("data-icon-done", "");
+    });
+  };
+
   LR.toast = function (msg, kind = "info", ms = 4500) {
     let box = document.getElementById("toasts");
     if (!box) {
       box = LR.el("div", { id: "toasts", class: "toasts", "aria-live": "polite" });
       document.body.append(box);
     }
-    const icon = { good: "✓", bad: "!", warn: "▲", info: "i" }[kind] || "i";
-    const t = LR.el("div", { class: `toast ${kind}` }, LR.el("span", { class: "toast-icon", "aria-hidden": "true", text: icon }), LR.el("span", { text: msg }));
+    const icon = { good: "check", bad: "alert", warn: "alert", info: "info" }[kind] || "info";
+    const t = LR.el("div", { class: `toast ${kind}` }, LR.el("span", { class: "toast-icon", "aria-hidden": "true" }, LR.icon(icon, 14)), LR.el("span", { text: msg }));
     box.append(t);
     setTimeout(() => { t.classList.add("out"); setTimeout(() => t.remove(), 250); }, ms);
+  };
+
+  /**
+   * 網站風格的確認視窗（取代瀏覽器內建的 confirm／prompt：樣式一致，App 內建瀏覽器也不會被略過）。
+   * 回傳 Promise<boolean>。typeToConfirm：要使用者照打一次這段文字才能按確定。
+   * recommendCancel：建議的做法是「取消」那一邊時（例如「先調整」），把它做成主按鈕、預設焦點也放在它上面。
+   */
+  LR.confirm = function ({ title, body, ok = "確定", cancel = "取消", danger = false, typeToConfirm = "", recommendCancel = false } = {}) {
+    const E = LR.el;
+    return new Promise((resolve) => {
+      const lines = Array.isArray(body) ? body : String(body || "").split("\n");
+      const okBtn = E("button", { class: "btn " + (danger ? "danger-solid" : recommendCancel ? "" : "primary"), type: "submit", value: "ok", text: ok });
+      const cancelBtn = E("button", { class: "btn " + (recommendCancel ? "primary" : "ghost"), type: "submit", value: "cancel", text: cancel });
+      const input = typeToConfirm ? E("input", { class: "input", autocomplete: "off", spellcheck: "false", "aria-label": `請輸入「${typeToConfirm}」` }) : null;
+      if (input) {
+        okBtn.disabled = true;
+        input.addEventListener("input", () => { okBtn.disabled = input.value.trim() !== typeToConfirm; });
+      }
+      const form = E("form", { class: "dialog-body", method: "dialog" },
+        E("div", { class: "dialog-h confirm-h" },
+          E("span", { class: "confirm-ico" + (danger ? " danger" : "") }, LR.icon(danger ? "trash" : "info", 20)),
+          E("h2", { id: "lrConfirmTitle", text: title || "確定嗎？" })),
+        E("div", { class: "confirm-body" }, lines.filter((l) => l !== "").map((l) => E("p", { text: l }))),
+        input ? E("div", { class: "field", style: "margin-top:14px" }, E("label", { text: `請輸入「${typeToConfirm}」確認` }), input) : null,
+        E("div", { class: "dialog-actions" }, E("span", { class: "spacer" }),
+          ...(recommendCancel ? [okBtn, cancelBtn] : [cancelBtn, okBtn])));
+      const dlg = E("dialog", { class: "dialog confirm", "aria-labelledby": "lrConfirmTitle" }, form);
+      document.body.append(dlg);
+      dlg.addEventListener("close", () => { resolve(dlg.returnValue === "ok"); dlg.remove(); });
+      dlg.showModal();
+      (input || (recommendCancel ? cancelBtn : okBtn)).focus();
+    });
+  };
+
+  /** LINE、Facebook、Instagram 等 App 內建瀏覽器（常常開不了鏡頭） */
+  LR.inAppBrowser = function () {
+    const ua = navigator.userAgent || "";
+    if (/\bLine\//i.test(ua)) return "LINE";
+    if (/FBAN|FBAV|FB_IAB/i.test(ua)) return "Facebook";
+    if (/Instagram/i.test(ua)) return "Instagram";
+    if (/MicroMessenger/i.test(ua)) return "微信";
+    return "";
   };
 
   LR.initTooltip = function () {
@@ -1170,7 +1279,7 @@
       chip.replaceChildren(LR.el("span", { class: "conn-dot", "aria-hidden": "true" }), LR.el("span", { class: "conn-text", text }));
       chip.title = mode ? "已連線，點擊修改設定" : "點擊輸入團隊通關碼";
       if (s.customUpload) {
-        chip.append(LR.el("span", { class: "conn-warn", text: "⚠ 自訂後端" }));
+        chip.append(LR.el("span", { class: "conn-warn", text: "自訂後端" }));
         chip.title = "注意：正在使用自訂的後端服務網址，不是網站預設的。點擊可以改回來。";
       }
     };
@@ -1179,15 +1288,18 @@
       LR.el("div", { class: "appbar-inner" },
         LR.el("a", { class: "brand", href: "index.html" },
           LR.el("span", { class: "brand-mark", "aria-hidden": "true" }, mouthIcon()),
-          LR.el("span", { class: "brand-text" }, LR.el("strong", { text: "專題" }))
+          LR.el("span", { class: "brand-text" }, LR.el("strong", { text: LR.BRAND }), LR.el("small", { text: LR.BRAND_SUB }))
         ),
         LR.el("nav", { class: "nav", "aria-label": "頁面" },
-          link("index.html", "input", "前台輸入"), link("report.html", "report", "後台報告"),
+          link("index.html", "input", "錄影"), link("report.html", "report", "報告"),
           link("schedule.html", "schedule", "日程"), link("log.html", "log", "日誌"), link("architecture.html", "arch", "架構")),
         chip
       )
     );
     renderChip();
+    LR.hydrateIcons();
+    // 卡片依序淡入（減少動態效果的設定會關掉）
+    if (!LR.reducedMotion()) document.querySelectorAll("main .card, main .kpi, main .page-head").forEach((n, i) => { n.style.setProperty("--enter", i); n.classList.add("enter"); });
     LR.events.addEventListener("connection", renderChip);
 
     const dlg = buildSettingsDialog();
@@ -1258,17 +1370,19 @@
     c2.addEventListener("change", sync);
     const P = LR.policy;
     const form = E("form", { class: "dialog-body", method: "dialog" },
-      E("div", { class: "dialog-h" },
-        E("h2", { id: "consentTitle", text: "使用前請先確認" }),
-        E("p", { class: "help", text: `隱私權政策 ${P.version} 版` })),
+      E("div", { class: "dialog-h confirm-h" },
+        E("span", { class: "confirm-ico" }, LR.icon("shield", 20)),
+        E("div", null,
+          E("h2", { id: "consentTitle", text: "開始前，請確認這四件事" }),
+          E("p", { class: "help", text: `隱私權政策 ${P.version} 版` }))),
       E("ul", { class: "consent-points" },
         E("li", null, E("strong", { text: "用途：" }), "只用於本專題（辨識訓練與測試、專題報告與展示），報告只用統計數字與嘴型動畫，不公開影片。"),
         E("li", null, E("strong", { text: "存放：" }), "口型數據在 GitHub 私有 repo、影片在專題負責人的雲端硬碟，只有專題成員看得到。"),
         E("li", null, E("strong", { text: "期限：" }), `保存到專題總截止日後 ${P.retentionYears} 年，期滿全部刪除。`),
         E("li", null, E("strong", { text: "權利：" }), "自願參與，可以隨時撤回同意、要求刪除自己的資料。未滿 18 歲需法定代理人同意。")),
       E("p", { class: "consent-links" },
-        E("a", { href: "privacy.html", target: "_blank", rel: "noopener", text: "閱讀完整的隱私權與使用規範 ↗" }),
-        P.contactFormUrl ? E("a", { href: P.contactFormUrl, target: "_blank", rel: "noopener noreferrer", text: "隱私權請求表單 ↗" }) : null),
+        E("a", { href: "privacy.html", target: "_blank", rel: "noopener" }, "閱讀完整的隱私權與使用規範", LR.icon("external", 13)),
+        P.contactFormUrl ? E("a", { href: P.contactFormUrl, target: "_blank", rel: "noopener noreferrer" }, "隱私權請求表單", LR.icon("external", 13)) : null),
       E("label", { class: "check consent-check" }, c1, E("span", { text: "我已閱讀並同意隱私權政策與使用規範" })),
       E("label", { class: "check consent-check" }, c2, E("span", { text: "我只會錄自己，或已經取得影片中的人同意" })),
       E("div", { class: "dialog-actions" }, no, E("span", { class: "spacer" }), ok));
@@ -1313,20 +1427,35 @@
 
   function buildSettingsDialog() {
     const E = LR.el;
-    const field = (id, label, attrs, help) =>
-      E("div", { class: "field" }, E("label", { for: id, text: label }), E("input", Object.assign({ id, class: "input" }, attrs)), help ? E("p", { class: "help", text: help }) : null);
+    // 欄位：錯誤訊息直接顯示在欄位下方，並標成 aria-invalid（螢幕閱讀器會一起唸）
+    const field = (id, label, attrs, help) => {
+      const err = E("p", { class: "field-err", id: id + "Err", role: "alert", hidden: true });
+      return E("div", { class: "field" }, E("label", { for: id, text: label }),
+        E("input", Object.assign({ id, class: "input", "aria-describedby": help ? id + "Help " + id + "Err" : id + "Err" }, attrs)),
+        help ? E("p", { class: "help", id: id + "Help", text: help }) : null, err);
+    };
     const status = E("p", { class: "dialog-status", role: "status" });
     const tsBox = E("div", { class: "ts-box", hidden: true });   // Turnstile 需要互動時，勾選框會出現在這裡
-    const btnSave = E("button", { class: "btn primary", type: "submit", text: "開始使用" });
+    const btnSave = E("button", { class: "btn primary lg", type: "submit" }, E("span", { class: "btn-label", text: "登入" }), LR.icon("arrow", 16));
     const btnOff = E("button", { class: "btn ghost danger", type: "button", text: "登出" });
     const btnCancel = E("button", { class: "btn ghost", type: "button", text: "取消" });
-    const segTeam = E("button", { type: "button", role: "tab", "data-m": "team", text: "團隊通關碼" });
-    const segDev = E("button", { type: "button", role: "tab", "data-m": "github", text: "開發者（GitHub token）" });
+
+    // 第一次來的人：先知道這是什麼、為什麼要錄嘴巴，再輸入通關碼（U1）
+    const welcome = E("aside", { class: "welcome" },
+      E("div", { class: "welcome-mark", "aria-hidden": "true" }, talkingLips()),
+      E("p", { class: "eyebrow brand-ink", text: LR.BRAND }),
+      E("h2", { class: "welcome-title", text: "幫我們錄幾句「無聲的話」" }),
+      E("p", { class: "welcome-lede", text: "這是大學專題「給失聲者用的無聲溝通系統」：讓電腦從嘴型看懂說不出聲音的人想說什麼。你只要對著鏡頭、不出聲地念幾個短句。" }),
+      E("ul", { class: "welcome-points" },
+        E("li", null, LR.icon("micoff", 18), E("span", null, E("strong", { text: "不錄聲音" }), "，預設只存嘴巴特寫")),
+        E("li", null, LR.icon("clock", 18), E("span", null, E("strong", { text: "一句約 3 秒" }), "，跟著畫面提示念就好")),
+        E("li", null, LR.icon("shield", 18), E("span", null, E("strong", { text: "隨時可以撤回" }), "，也能要求刪除自己的資料"))),
+      E("a", { class: "welcome-link", href: "privacy.html" }, "先看隱私權政策", LR.icon("arrow", 14)));
 
     // 通關碼
     const rememberTeam = E("input", { type: "checkbox", id: "setTeamRemember" });
     const teamBox = E("div", null,
-      field("setName", "你的名字或代號", { autocomplete: "nickname", maxlength: "30", placeholder: "例如：小明、A" }, "會記在上傳紀錄裡，方便知道是誰錄的。"),
+      field("setName", "你的名字或代號", { autocomplete: "nickname", maxlength: "30", placeholder: "例如：小明、A" }, "會記在上傳紀錄裡；錄影時也會預先帶入。"),
       field("setCode", "團隊通關碼", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100", placeholder: "向專題負責人索取" }),
       E("details", { class: "admin-box" },
         E("summary", { text: "我是管理員（需要刪除資料）" }),
@@ -1335,50 +1464,83 @@
       E("label", { class: "check", style: "margin-top:12px" }, rememberTeam, E("span", { text: "在這台裝置記住通關碼（公用電腦請勿勾選）" }))
     );
 
-    // 開發者
+    // 開發者（志願者用不到，收在「進階」裡）
     const rememberDev = E("input", { type: "checkbox", id: "setRemember" });
     const tokenLink = E("a", { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener noreferrer", text: "建立 token" });
+    const backToTeam = E("button", { class: "btn ghost sm", type: "button" }, "← 改用團隊通關碼");
     const devBox = E("div", null,
+      E("div", { class: "dev-head" }, E("strong", { text: "開發者登入（GitHub token）" }), backToTeam),
       E("div", { class: "field-row" },
         field("setOwner", "帳號／組織", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
         field("setRepo", "資料 Repo", { autocomplete: "off", spellcheck: "false", maxlength: "100" })),
       field("setBranch", "分支", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
       E("div", { class: "field" },
         E("label", { for: "setToken" }, "Personal access token　", tokenLink),
-        E("input", { id: "setToken", class: "input mono", type: "password", autocomplete: "off", spellcheck: "false", placeholder: "github_pat_…" }),
-        E("p", { class: "help", text: "Fine-grained token：只勾資料 repo，Contents 設為 Read and write。已連線時留空表示沿用原本的 token。" })),
+        E("input", { id: "setToken", class: "input mono", type: "password", autocomplete: "off", spellcheck: "false", placeholder: "github_pat_…", "aria-describedby": "setTokenErr" }),
+        E("p", { class: "help", text: "Fine-grained token：只勾資料 repo，Contents 設為 Read and write。已連線時留空表示沿用原本的 token。" }),
+        E("p", { class: "field-err", id: "setTokenErr", role: "alert", hidden: true })),
       E("label", { class: "check" }, rememberDev, E("span", { text: "在這台電腦記住 token（公用電腦請勿勾選）" }))
     );
 
-    const advBox = E("details", { class: "admin-box", style: "margin-top:14px" },
-      E("summary", { text: "進階：後端服務網址" }),
-      field("setUpload", "Google Apps Script 網址", { class: "input mono", autocomplete: "off", spellcheck: "false", placeholder: "https://script.google.com/macros/s/…/exec" }, "通常不用改，網站已經預設好了。"));
+    const toDev = E("button", { class: "linkish", type: "button", text: "我是開發者，用 GitHub token 登入" });
+    const advBox = E("details", { class: "admin-box adv-box" },
+      E("summary", { text: "進階設定" }),
+      field("setUpload", "後端服務網址（Google Apps Script）", { class: "input mono", autocomplete: "off", spellcheck: "false", placeholder: "https://script.google.com/macros/s/…/exec" }, "通常不用改，網站已經預設好了。"),
+      toDev);
 
-    const form = E("form", { class: "dialog-body", method: "dialog" },
-      E("div", { class: "dialog-h" }, E("h2", { id: "setTitle", text: "開始使用" }),
-        E("p", { class: "help", text: "輸入團隊通關碼就能上傳影片、看報告，不需要 GitHub 帳號。" })),
-      E("div", { class: "seg", role: "tablist", style: "margin-bottom:16px" }, segTeam, segDev),
+    const title = E("h2", { id: "setTitle", text: "輸入通關碼開始" });
+    const sub = E("p", { class: "help", text: "通關碼請向專題負責人索取，不需要註冊帳號。" });
+    const form = E("form", { class: "dialog-body login-form", method: "dialog", novalidate: true },
+      E("div", { class: "dialog-h" }, title, sub),
       teamBox, devBox, advBox, tsBox, status,
       E("div", { class: "dialog-actions" }, btnOff, E("span", { class: "spacer" }), btnCancel, btnSave));
-    const dlg = E("dialog", { class: "dialog", "aria-labelledby": "setTitle" }, form);
+    const dlg = E("dialog", { class: "dialog login", "aria-labelledby": "setTitle" }, E("div", { class: "login-grid" }, welcome, form));
     const $f = (id) => form.querySelector("#" + id);
 
     let tab = "team";
     const setTab = (m) => {
       tab = m;
-      segTeam.setAttribute("aria-selected", String(m === "team"));
-      segDev.setAttribute("aria-selected", String(m === "github"));
       teamBox.hidden = m !== "team";
       devBox.hidden = m !== "github";
-      btnSave.textContent = m === "team" ? "開始使用" : "連線並儲存";
-      status.textContent = "";
+      toDev.hidden = m === "github";
+      if (m === "github") advBox.open = true;
+      dlg.querySelector(".btn-label").textContent = m === "team" ? (LR.mode() ? "儲存" : "登入") : "連線並儲存";
+      clearErrors();
     };
-    segTeam.addEventListener("click", () => setTab("team"));
-    segDev.addEventListener("click", () => setTab("github"));
-    const fail = (msg) => { status.textContent = msg; status.className = "dialog-status bad"; };
+    toDev.addEventListener("click", () => { setTab("github"); $f("setOwner").focus(); });
+    backToTeam.addEventListener("click", () => { setTab("team"); $f("setCode").focus(); });
+
+    function clearErrors() {
+      status.textContent = "";
+      status.className = "dialog-status";
+      form.querySelectorAll(".field-err").forEach((p) => { p.hidden = true; p.textContent = ""; });
+      form.querySelectorAll("[aria-invalid]").forEach((i) => i.removeAttribute("aria-invalid"));
+    }
+    // 有對應欄位就把錯誤放在欄位下方並把游標移過去；沒有就顯示在按鈕上方（U7）
+    const fail = (msg, fieldId) => {
+      const input = fieldId && $f(fieldId);
+      const err = fieldId && $f(fieldId + "Err");
+      if (input && err) {
+        if (input.closest("details")) input.closest("details").open = true;
+        err.textContent = msg; err.hidden = false;
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        input.classList.remove("shake"); void input.offsetWidth; input.classList.add("shake");
+        status.textContent = "";
+      } else {
+        status.textContent = msg; status.className = "dialog-status bad";
+      }
+    };
+    const errField = (msg) =>
+      /管理員密碼/.test(msg) ? "setAdmin" : /通關碼|嘗試太多次/.test(msg) ? "setCode" : /token/i.test(msg) ? "setToken" : /後端服務網址/.test(msg) ? "setUpload" : null;
 
     LR.openSettings = () => {
       const s = LR.settings.get(), t = LR.team.get();
+      const first = !LR.mode();
+      dlg.classList.toggle("first", first);
+      welcome.hidden = !first;
+      title.textContent = first ? "輸入通關碼開始" : "登入設定";
+      sub.textContent = first ? "通關碼請向專題負責人索取，不需要註冊帳號。" : "可以改名字、切換成管理員，或登出。";
       $f("setOwner").value = s.owner;
       $f("setRepo").value = s.repo;
       $f("setBranch").value = s.branch;
@@ -1392,9 +1554,9 @@
       rememberTeam.checked = t ? LR.team.remembered() : false;
       btnOff.hidden = !LR.mode();
       btnCancel.hidden = !LR.mode(); // 還沒登入就不能取消
-      status.className = "dialog-status";
       setTab(LR.mode() === "github" ? "github" : "team");
-      dlg.showModal();
+      if (!dlg.open) dlg.showModal();
+      setTimeout(() => (first ? $f(t ? "setCode" : "setName") : btnCancel).focus(), 30);
     };
     btnCancel.addEventListener("click", () => { if (LR.mode()) dlg.close(); });
     // 按 Esc 也不能在未登入時關掉
@@ -1409,22 +1571,30 @@
       LR.events.dispatchEvent(new Event("connection"));
       LR.toast("已登出，通關碼與 token 已從這個瀏覽器移除", "info");
     });
+    form.addEventListener("input", (e) => {
+      if (e.target.getAttribute && e.target.getAttribute("aria-invalid")) {
+        e.target.removeAttribute("aria-invalid");
+        const err = $f(e.target.id + "Err");
+        if (err) err.hidden = true;
+      }
+    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      clearErrors();
       const cur = LR.settings.get();
       const uploadUrl = $f("setUpload").value.trim();
-      if (!LR.settings.validUploadUrl(uploadUrl)) return fail("後端服務網址格式不對，應該是 https://script.google.com/macros/s/…/exec");
+      if (!LR.settings.validUploadUrl(uploadUrl)) return fail("網址格式不對，應該是 https://script.google.com/macros/s/…/exec", "setUpload");
       btnSave.disabled = true;
+      btnSave.classList.add("loading");
       tsBox.hidden = true;
-      status.textContent = "連線測試中…";
-      status.className = "dialog-status";
+      status.textContent = "連線中…";
       try {
         if (tab === "team") {
           const name = LR.cleanText($f("setName").value, 30);
           const code = $f("setCode").value.trim() || (LR.team.get() || {}).code || "";
           const admin = $f("setAdmin").value.trim();
-          if (!code) return fail("請輸入團隊通關碼");
+          if (!code) return fail("請輸入團隊通關碼", "setCode");
           if (!uploadUrl) return fail("網站沒有設定後端服務網址，請聯絡專題負責人");
           LR.settings.save(Object.assign({}, cur, { uploadUrl }), LR.settings.token(), LR.settings.remembered());
           let session = null;
@@ -1443,7 +1613,7 @@
           if (session) LR.session.save(session, rememberTeam.checked);
           dlg.close();
           LR.events.dispatchEvent(new Event("connection"));
-          LR.toast(`歡迎${name ? "，" + name : ""}！${admin ? "已用管理員身分登入" : "可以開始上傳了"}`, "good");
+          LR.toast(`歡迎${name ? "，" + name : ""}！${admin ? "已用管理員身分登入" : "可以開始錄了"}`, "good");
         } else {
           const s = {
             owner: $f("setOwner").value.trim(),
@@ -1452,8 +1622,8 @@
             uploadUrl,
           };
           const token = $f("setToken").value.trim() || LR.settings.token();
-          if (!LR.settings.valid(s)) return fail("帳號、repo 或分支名稱只能用英數字和 . _ -");
-          if (!token) return fail("請貼上 token");
+          if (!LR.settings.valid(s)) return fail("帳號、repo 或分支名稱只能用英數字和 . _ -", "setOwner");
+          if (!token) return fail("請貼上 token", "setToken");
           const info = await LR.gh.connect(s, token);
           LR.settings.save(Object.assign(s, { login: info.login }), token, rememberDev.checked);
           dlg.close();
@@ -1466,11 +1636,33 @@
           }
         }
       } catch (err) {
-        fail(err.message);
+        // 後端開了人機驗證、網頁卻沒設定網站金鑰：怎麼登入都會失敗，直接說清楚（N6）
+        if (err && err.code === "LOGIN_REQUIRED" && !LR.turnstile.enabled()) {
+          fail("網站的人機驗證設定不一致（後端已開啟，網頁沒有設定 turnstileSiteKey），請聯絡專題負責人。");
+        } else {
+          fail(err.message, errField(err.message || ""));
+        }
       } finally {
         btnSave.disabled = false;
+        btnSave.classList.remove("loading");
+        if (status.textContent === "連線中…" || /^人機驗證中/.test(status.textContent)) status.textContent = "";
       }
     });
     return dlg;
+  }
+
+  /** 登入頁的嘴唇插圖：會「無聲說話」的小動畫（減少動態效果時靜止） */
+  function talkingLips() {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 120 80");
+    svg.setAttribute("class", "talk-lips");
+    // 常數圖形，不含外部字串
+    svg.innerHTML =
+      '<ellipse class="tl-shadow" cx="60" cy="72" rx="34" ry="4"/>' +
+      '<path class="tl-upper" d="M14 40c10-13 22-20 31-16 6 3 9 3 15 0s9-3 15 0c9-4 21 3 31 16-14 2-29 3-46 3S28 42 14 40z"/>' +
+      '<path class="tl-mouth" d="M22 41c12 3 25 4 38 4s26-1 38-4c-10 9-23 14-38 14S32 50 22 41z"/>' +
+      '<path class="tl-lower" d="M14 40c10 14 26 22 46 22s36-8 46-22c-14 4-29 6-46 6S28 44 14 40z"/>';
+    return svg;
   }
 })();

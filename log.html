@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a78d6">
-<title>日誌｜專題</title>
+<meta name="theme-color" content="#f3eee5">
+<title>日誌｜唇語專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -89,9 +89,9 @@
   LR.mountHeader("log", { autoOpen: true });
   LR.initTooltip();
 
-  const TYPES = { "進度": "📈", "會議": "👥", "老師意見": "🎓", "問題": "⚠️", "想法": "💡" };
+  const TYPES = { "進度": "trend", "會議": "users", "老師意見": "cap", "問題": "alert", "想法": "bulb" };
   const S = { journal: [], commits: [], page: 0, more: true, show: "all", type: "", busy: false };
-  $("jType").replaceChildren(...Object.keys(TYPES).map((t) => el("option", { value: t, text: `${TYPES[t]} ${t}` })));
+  $("jType").replaceChildren(...Object.keys(TYPES).map((t) => el("option", { value: t, text: t })));
   $("typeFilter").append(...Object.keys(TYPES).map((t) => el("option", { value: t, text: t })));
   const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   $("jDate").value = localDay(new Date());
@@ -202,12 +202,12 @@
     const canDel = LR.gh.canDelete();
     const del = canDel ? el("button", { class: "btn ghost sm danger", type: "button", text: "刪除" }) : null;
     if (del) del.addEventListener("click", async () => {
-      if (!confirm(`確定刪除日誌「${j.title}」？`)) return;
+      if (!(await LR.confirm({ title: `刪除日誌「${j.title}」？`, body: "會留下刪除紀錄，可從 git 歷史還原。", ok: "刪除", danger: true }))) return;
       try { await LR.api.deleteJournal(j); S.journal = S.journal.filter((x) => x !== j); render(); toast("已刪除", "good"); }
       catch (e) { toast(e.message, "bad"); }
     });
     return el("li", { class: "log-item journal" },
-      el("div", { class: "log-dot", "aria-hidden": "true", text: TYPES[j.type] || "📝" }),
+      el("div", { class: "log-dot", "aria-hidden": "true" }, LR.icon(TYPES[j.type] || "pen", 15)),
       el("article", { class: "log-card" },
         el("div", { class: "log-card-h" },
           el("span", { class: "badge accent", text: j.type || "日誌" }),
@@ -231,9 +231,9 @@
     }
     else text = g.text;
     const time = g.count > 1 && hhmm(g.from) !== hhmm(g.time) ? `${hhmm(g.from)}–${hhmm(g.time)}` : hhmm(g.time);
-    const icon = { sample: "🎥", delete: "🗑", task: "✅" }[g.kind] || "•";
+    const icon = { sample: "video", delete: "trash", task: "check" }[g.kind] || "info";
     return el("li", { class: "log-item system" },
-      el("div", { class: "log-dot small", "aria-hidden": "true", text: icon }),
+      el("div", { class: "log-dot small", "aria-hidden": "true" }, LR.icon(icon, 13)),
       el("div", { class: "log-sys" }, el("strong", { text: g.actor }), " ", text, el("span", { class: "log-meta", text: "　" + time })));
   }
 

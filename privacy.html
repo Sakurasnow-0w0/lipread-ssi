@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a78d6">
+<meta name="theme-color" content="#f3eee5">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<title>隱私權與使用規範｜專題</title>
+<title>隱私權與使用規範｜唇語專題</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -25,12 +25,12 @@
   <section class="card policy-summary">
     <h2>重點摘要</h2>
     <ul class="summary-list">
-      <li><span class="si">🎯</span><div><strong>只用於本專題</strong>：訓練與測試唇語辨識、專題報告與展示。</div></li>
-      <li><span class="si">👄</span><div><strong>盡量只存嘴巴</strong>：引導錄影預設只存嘴巴特寫；數據庫只存數字，沒有影像。</div></li>
-      <li><span class="si">🔒</span><div><strong>只有團隊看得到</strong>：要有通關碼才能使用，影片只分享給專題成員。</div></li>
-      <li><span class="si">⏳</span><div><strong>有保存期限</strong>：<span id="retentionShort">專題總截止日後 1 年</span>全部刪除。</div></li>
-      <li><span class="si">🙋</span><div><strong>可以隨時撤回</strong>：想刪掉自己的資料，聯絡專題負責人就會刪除。</div></li>
-      <li><span class="si">🚫</span><div><strong>不公開影片</strong>：報告和展示只用統計數字與嘴型動畫。</div></li>
+      <li><span class="si" data-icon="target" data-icon-size="20"></span><div><strong>只用於本專題</strong>：訓練與測試唇語辨識、專題報告與展示。</div></li>
+      <li><span class="si" data-icon="lips" data-icon-size="20"></span><div><strong>盡量只存嘴巴</strong>：引導錄影預設只存嘴巴特寫；數據庫只存數字，沒有影像。</div></li>
+      <li><span class="si" data-icon="lock" data-icon-size="20"></span><div><strong>只有團隊看得到</strong>：要有通關碼才能使用，影片只分享給專題成員。</div></li>
+      <li><span class="si" data-icon="clock" data-icon-size="20"></span><div><strong>有保存期限</strong>：<span id="retentionShort">專題總截止日後 1 年</span>全部刪除。</div></li>
+      <li><span class="si" data-icon="shield" data-icon-size="20"></span><div><strong>可以隨時撤回</strong>：想刪掉自己的資料，聯絡專題負責人就會刪除。</div></li>
+      <li><span class="si" data-icon="ban" data-icon-size="20"></span><div><strong>不公開影片</strong>：報告和展示只用統計數字與嘴型動畫。</div></li>
     </ul>
   </section>
 
@@ -96,7 +96,7 @@
       <h2>6. 使用規範</h2>
       <div class="dodont">
         <div>
-          <h4>✓ 可以</h4>
+          <h4><span data-icon="check">可以</span></h4>
           <ul>
             <li>錄你自己，或是<strong>已經同意</strong>參與的人</li>
             <li>用代號當錄製者名稱</li>
@@ -105,7 +105,7 @@
           </ul>
         </div>
         <div>
-          <h4>✗ 不可以</h4>
+          <h4><span data-icon="x">不可以</span></h4>
           <ul>
             <li>偷拍、或錄沒有同意的人</li>
             <li>把通關碼、管理員密碼貼到公開的地方</li>
@@ -189,8 +189,8 @@
       ? `你在 ${new Date(c.at).toLocaleString("zh-TW", { hour12: false })} 同意了 ${c.version} 版。`
       : "你還沒有同意目前版本的政策，回到其他頁面時會請你確認。";
   }
-  $("withdraw").addEventListener("click", () => {
-    if (!confirm("撤回同意後會登出，之後不能再錄影或上傳。\n已經上傳的資料不會自動刪除，要刪除請聯絡專題負責人。\n\n確定撤回？")) return;
+  $("withdraw").addEventListener("click", async () => {
+    if (!(await LR.confirm({ title: "撤回同意？", body: ["撤回後會登出，之後不能再錄影或上傳。", "已經上傳的資料不會自動刪除，要刪除請用隱私權請求表單或聯絡專題負責人。"], ok: "撤回並登出", danger: true }))) return;
     P.withdraw();
     LR.settings.disconnect();
     LR.team.clear();

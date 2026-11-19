@@ -1,7 +1,7 @@
 # 交接審查文件：唇語辨識專題網站
 
 > 給接手審查或維護的人（或另一個 AI 工作階段）。
-> 最後更新：2026-11-20，後端 v5.1。對應的 commit 請看 `git log -1 -- docs/HANDOFF.md`（文件改版時一定會留下 commit）。
+> 最後更新：2026-11-20，後端 v5.2。對應的 commit 請看 `git log -1 -- docs/HANDOFF.md`（文件改版時一定會留下 commit）。
 
 ---
 
@@ -153,7 +153,7 @@ Google Apps Script（Code.gs）
 node tests/backend.test.js
 ```
 
-用假的 Apps Script 環境跑 66 項檢查（含 Turnstile 登入與通行證）。Node 裡請求是一個一個跑，**沒辦法驗證加鎖在真正同時送出時的效果**，這部分要另外部署測試版實測。
+用假的 Apps Script 環境跑 79 項檢查（含 Turnstile 登入與通行證、登入名額、鎖忙碌時拒絕）。Node 裡請求是一個一個跑，**沒辦法驗證加鎖在真正同時送出時的效果**，這部分要另外部署測試版實測。
 
 ### 前端（本機，不碰正式後端）
 
@@ -235,7 +235,7 @@ window.fetch = async (url, opts = {}) => {
 
 ## 10. 目前狀態
 
-- 後端 v5.1（`doGet` 回傳 `version: 5.1` 與 `turnstile: true/false`）；修正內容見 SECURITY.md
+- 後端 v5.2（`doGet` 回傳 `version: 5.2` 與 `turnstile: true/false`）；修正內容見 SECURITY.md
 - 資料 repo 已有 `data/schedule.json`（交接文件匯入的 9 項待辦）
 - 隱私權請求表單：`assets/config.js` 的 `contactFormUrl`；刻意不放信箱，避免公開 repo 被掃信箱
 - 隱私權政策版本 `2026-11-20`（加入 Cloudflare Turnstile 說明）；改內容時請同時改 `config.js` 的 `privacyVersion` 和指令碼屬性 `PRIVACY_VERSION`，所有人會被要求重新同意

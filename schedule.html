@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a78d6">
-<title>日程｜專題</title>
+<meta name="theme-color" content="#f3eee5">
+<title>日程｜唇語專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -67,7 +67,7 @@
     <section class="card reveal" id="timelineCard">
       <div class="card-h">
         <h2>時間軸</h2>
-        <p>從今天到專題截止，未完成待辦的截止日分布。滑過圓點看內容。</p>
+        <p>從今天到專題截止，未完成待辦的截止日分布。點圓點（電腦上也可以滑過）看內容。</p>
       </div>
       <div class="tl" id="timeline"></div>
     </section>
@@ -103,7 +103,7 @@
           <div class="card-h"><h2>說明</h2></div>
           <ul class="plain-list">
             <li>有通關碼就能新增、修改、勾完成</li>
-            <li>刪除待辦、設定總截止日需要管理員密碼（右上角「我是管理員」）</li>
+            <li>刪除待辦、設定總截止日需要管理員身分：點右上角的名字，展開「我是管理員」輸入管理員密碼</li>
             <li>每次變更都會留下紀錄，可以在「日誌」看到誰改了什麼</li>
           </ul>
         </section>
@@ -262,7 +262,7 @@
         el("h3", { class: "subh " + (g.kind ? "tg-" + g.kind : "") }, g.icon ? el("span", { class: "tg-icon", "aria-hidden": "true", text: g.icon }) : null, `${g.title}（${items.length}）`),
         el("ul", { class: "tasks" }, items.map(taskRow)));
     }).filter(Boolean));
-    if (!open.length) $("taskGroups").replaceChildren(el("p", { class: "empty-line", text: n ? "所有待辦都完成了 🎉" : "還沒有待辦，從右邊新增第一項吧。" }));
+    if (!open.length) $("taskGroups").replaceChildren(el("p", { class: "empty-line", text: n ? "所有待辦都完成了，辛苦了！" : "還沒有待辦，從右邊新增第一項吧。" }));
     $("taskSummary").textContent = n ? `${open.length} 項未完成、${done.length} 項已完成` : "";
     $("doneBox").hidden = !done.length;
     $("doneSummary").textContent = `已完成（${done.length}）`;
@@ -286,7 +286,7 @@
     const dueCls = t.done ? "muted" : d == null ? "" : d < 0 ? "bad" : d <= 7 ? "warn" : "";
     const meta = el("div", { class: "task-meta" },
       t.due ? el("span", { class: "badge " + dueCls, text: (dueCls === "bad" ? "! " : dueCls === "warn" ? "▲ " : "") + dueText(t) }) : null,
-      t.owner ? el("span", { class: "badge", text: "👤 " + t.owner }) : null,
+      t.owner ? el("span", { class: "badge" }, LR.icon("user", 12), t.owner) : null,
       t.done && t.doneBy ? el("span", { class: "task-by", text: `由 ${t.doneBy} 完成` }) : null);
     const edit = el("button", { class: "btn ghost sm", type: "button", text: "修改" });
     edit.addEventListener("click", () => openEdit(t));
@@ -310,7 +310,7 @@
     const x = (t) => ((t - minT) / span) * 100;
     const marks = [];
     marks.push(el("div", { class: "tl-today", style: `left:${x(start)}%` }, el("span", { text: "今天" })));
-    if (f) marks.push(el("div", { class: "tl-final", style: `left:${x(new Date(f.at).getTime())}%`, tabindex: "0", "data-tip": `${f.title}\n${f.at.replace("T", " ")}` }, el("span", { text: "🏁 " + f.title })));
+    if (f) marks.push(el("div", { class: "tl-final", style: `left:${x(new Date(f.at).getTime())}%`, tabindex: "0", "data-tip": `${f.title}\n${f.at.replace("T", " ")}` }, el("span", null, LR.icon("flag", 12), " " + f.title)));
     dated.forEach((t, i) => {
       const dl = daysLeft(t.due);
       marks.push(el("button", {
@@ -349,8 +349,8 @@
     $("taskDlg").close();
     op({ type: "editTask", id: editing.id, title: $("eTitle").value, due: $("eDue").value, owner: $("eOwner").value, note: $("eNote").value }, "已儲存");
   });
-  $("eDelete").addEventListener("click", () => {
-    if (!confirm(`確定刪除「${editing.title}」？`)) return;
+  $("eDelete").addEventListener("click", async () => {
+    if (!(await LR.confirm({ title: `刪除「${editing.title}」？`, body: "這個待辦會從大家的日程裡移除。", ok: "刪除", danger: true }))) return;
     $("taskDlg").close();
     op({ type: "deleteTask", id: editing.id }, "已刪除");
   });
@@ -367,8 +367,8 @@
     $("finalDlg").close();
     op({ type: "setFinal", at: $("fAt").value.slice(0, 16), title: $("fTitle").value }, "已設定專題截止日");
   });
-  $("fClear").addEventListener("click", () => {
-    if (!confirm("確定清除專題截止日？")) return;
+  $("fClear").addEventListener("click", async () => {
+    if (!(await LR.confirm({ title: "清除專題截止日？", body: "倒數和時間軸會一起消失，之後可以再設定。", ok: "清除", danger: true }))) return;
     $("finalDlg").close();
     op({ type: "setFinal", clear: true }, "已清除");
   });

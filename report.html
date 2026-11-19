@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a78d6">
-<title>分析報告｜專題</title>
+<meta name="theme-color" content="#f3eee5">
+<title>分析報告｜唇語專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -66,8 +66,18 @@
 
   <div class="report-stack" id="report" hidden>
     <section class="kpis" id="kpis" aria-label="重點數字"></section>
+    <div class="below-note" id="belowNote" role="status" hidden><span data-icon="alert"></span><span id="belowText"></span></div>
 
-    <section class="card reveal">
+    <!-- 報告很長：頁內目錄，捲動時標出目前的區塊（U9） -->
+    <nav class="toc" id="toc" aria-label="報告區塊">
+      <a href="#secAcc">準確率</a>
+      <a href="#lipSection">嘴型重播</a>
+      <a href="#secData">資料集</a>
+      <a href="#secUsage">使用統計</a>
+      <a href="#secList">樣本清單</a>
+    </nav>
+
+    <section class="card reveal" id="secAcc">
       <div class="card-h row">
         <div>
           <h2>辨識準確率</h2>
@@ -118,7 +128,7 @@
       </div>
     </section>
 
-    <section class="card reveal">
+    <section class="card reveal" id="secData">
       <div class="card-h">
         <h2>資料集概況</h2>
         <p>每種內容收集了幾段、由誰錄的。少於 5 段的格子標 ▲，建議補錄。</p>
@@ -135,7 +145,7 @@
       </div>
     </section>
 
-    <section class="card reveal">
+    <section class="card reveal" id="secUsage">
       <div class="card-h">
         <h2>使用統計</h2>
         <p>系統被用了多少：誰在上傳、哪幾天比較活躍、資料有沒有同意紀錄。</p>
@@ -154,7 +164,7 @@
       </div>
     </section>
 
-    <section class="card reveal">
+    <section class="card reveal" id="secList">
       <div class="card-h row">
         <div>
           <h2>樣本清單</h2>
@@ -286,7 +296,7 @@
 
   async function analyze(start) {
     $("sourceLine").textContent = "資料來源：" + S.source;
-    if (!S.samples.length) { empty("資料庫還沒有樣本", "到「前台輸入」上傳第一段影片後，這裡就會出現分析結果。"); return; }
+    if (!S.samples.length) { empty("資料庫還沒有樣本", "到「錄影」頁錄第一段影片後，這裡就會出現分析結果。"); return; }
     const count = new Map();
     for (const s of S.samples) count.set(s.label, (count.get(s.label) || 0) + 1);
     S.labels = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-Hant")).map((x) => x[0]);
@@ -389,14 +399,32 @@
       ["留一法準確率", loo.acc, p1, loo.n ? `${loo.hit} / ${loo.n} 段答對` : "每種內容至少要 2 段", true],
       ["跨錄製者準確率", cross.acc, p1, cross.n ? `${cross.hit} / ${cross.n} 段答對` : "需要 2 位以上錄製者念同一內容", true],
     ];
+    const below = (sum) => sum.n > 0 && Number.isFinite(chance) && sum.acc <= chance;
+    const lowLoo = below(loo), lowCross = below(cross);
     $("kpis").replaceChildren(...tiles.map(([label, value, fmt, sub, hero], i) => {
       const v = el("div", { class: "kpi-value" });
-      const node = el("div", { class: "kpi reveal" + (hero ? " hero" : ""), style: `transition-delay:${i * 70}ms` },
+      const isLow = (i === 3 && lowLoo) || (i === 4 && lowCross);
+      const node = el("div", { class: "kpi reveal" + (hero ? " hero" : "") + (isLow ? " below" : ""), style: `transition-delay:${i * 70}ms` },
         el("div", { class: "kpi-label", text: label }), v, el("div", { class: "kpi-sub", text: sub }));
       countUp(v, value, fmt, i * 70);
       return node;
     }));
+    const which = [lowLoo ? "留一法" : "", lowCross ? "跨錄製者" : ""].filter(Boolean).join("、");
+    $("belowNote").hidden = !which;
+    $("belowText").textContent = which
+      ? `${which}的準確率沒有比亂猜（約 ${pct(chance)}）好。常見原因：每句的樣本太少（建議每句至少 5 段）、錄法不一致（閉嘴時機、距離），或標註錯誤。可以先看下面的「資料集概況」和「最常搞混」。`
+      : "";
   }
+
+  // 頁內目錄：標出目前看到的區塊
+  (function () {
+    const links = [...document.querySelectorAll("#toc a")];
+    if (!("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries) if (en.isIntersecting) links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + en.target.id));
+    }, { rootMargin: "-30% 0px -60% 0px" });
+    links.forEach((a) => { const t = document.querySelector(a.getAttribute("href")); if (t) io.observe(t); });
+  })();
 
   function hbar(name, frac, valText, tip) {
     return el("div", { class: "hbar" },
@@ -539,7 +567,7 @@
         : el("span", { class: "res-bad", text: `✗ 判成「${r.pred}」` });
       const q = s.quality || {};
       const miss = q.frames ? q.missed / q.frames : NaN;
-      const where = s.video.driveId ? `☁ ${s.video.folder ? s.video.folder + "/" : ""}${s.video.name}` : (s.video.name || "—");
+      const where = s.video.driveId ? `雲端：${s.video.folder ? s.video.folder + "/" : ""}${s.video.name}` : (s.video.name || "—");
       const view = el("button", { class: "btn ghost sm", type: "button", text: "檢視" });
       view.addEventListener("click", () => openSample(s));
       const del = S.fromGitHub && LR.gh.canDelete() ? el("button", { class: "btn ghost sm danger", type: "button", text: "刪除" }) : null;
@@ -671,8 +699,12 @@
     const fs = $("fSpeaker").value;
     const list = S.samples.filter((s) => s.speaker === fs);
     if (!fs || !list.length) return;
-    const typed = prompt(`這會刪除錄製者「${fs}」的全部 ${list.length} 段樣本：\n・口型數據從 GitHub 刪除（git 歷史仍可還原）\n・雲端影片移到垃圾桶（30 天內可還原）\n\n確定的話，請輸入錄製者代號「${fs}」：`);
-    if (typed !== fs) { if (typed !== null) toast("輸入的代號不符，已取消", "warn"); return; }
+    const go = await LR.confirm({
+      title: `刪除「${fs}」的全部 ${list.length} 段樣本？`,
+      body: ["口型數據會從 GitHub 刪除（git 歷史仍可還原）。", "雲端影片會移到垃圾桶，30 天內可還原。"],
+      ok: `刪除 ${list.length} 段`, danger: true, typeToConfirm: fs,
+    });
+    if (!go) return;
     const btn = $("deleteSpeaker");
     btn.disabled = true;
     let ok = 0, fail = 0;
@@ -693,7 +725,12 @@
   async function removeSample(s) {
     const drive = s.video.driveId && LR.drive.url();
     const separateTrash = drive && LR.mode() === "github"; // 通關碼模式由後端一併處理
-    if (!confirm(`確定要刪除這段樣本？\n\n內容：${s.label}\n錄製者：${s.speaker || "—"}\n影片：${s.video.name || "—"}\n\n口型數據會從 GitHub 刪除（會留下刪除 commit，可從 git 歷史還原）。${drive ? "\n雲端影片會移到垃圾桶，30 天內可還原。" : ""}`)) return;
+    const go = await LR.confirm({
+      title: "刪除這段樣本？",
+      body: [`內容：${s.label}　錄製者：${s.speaker || "—"}`, `影片：${s.video.name || "—"}`, "口型數據會從 GitHub 刪除（會留下刪除紀錄，可從 git 歷史還原）。", drive ? "雲端影片會移到垃圾桶，30 天內可還原。" : ""],
+      ok: "刪除", danger: true,
+    });
+    if (!go) return;
     try {
       await LR.gh.deleteSample(s);
       if (separateTrash) {

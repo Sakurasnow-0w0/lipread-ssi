@@ -1,5 +1,5 @@
 /**
- * 唇語專題：後端服務（Google Apps Script）v5.1
+ * 唇語專題：後端服務（Google Apps Script）v5.2
  *
  * 功能
  *  1. 影片存進雲端硬碟，依「念的內容」自動建子資料夾
@@ -40,7 +40,7 @@ var CONFIG = {
   FAILS_PER_MINUTE: 15,                  // 每種身分每分鐘可錯幾次
   TOKEN_FAILS_PER_DAY: 300,              // GitHub token 驗證失敗每天上限（每次失敗都要連 GitHub）
   STRONG_CODE_LENGTH: 16,                // 通關碼夠長時，輸入正確的人不會被「錯太多次」擋住
-  LOGIN_PER_MINUTE: 60,                  // 全站每分鐘最多登入次數
+  LOGIN_PER_MINUTE: 200,                 // 全站每分鐘最多「真的連到 Cloudflare」的登入次數（只防瞬間灌爆，配額靠每日上限）
   LOGIN_PER_DAY: 2000,                   // 全站每天最多登入次數（每次登入要連一次 Cloudflare，保護對外連線配額）
   SESSION_TTL: 21600,                    // 通行證有效秒數（Apps Script 快取最多 6 小時）
   DEFAULT_HOSTNAMES: "sakurasnow-0w0.github.io",
@@ -62,7 +62,7 @@ function doPost(e) {
     switch (req.action) {
       case "ping": return json_({ ok: true, role: who.role, name: who.name, folder: who.role === "member" || who.role === "admin" ? root_().getName() : "" });
       case "upload": rate_("save", 1, CONFIG.SAVE_PER_MINUTE); return json_(upload_(req, who));
-      case "saveSample": rate_("save", 1, CONFIG.SAVE_PER_MINUTE); return json_(saveSample_(req, who));
+      case "saveSample": return json_(saveSample_(req, who));          // 限流在函式內，被擋時也會清掉剛上傳的影片
       case "list": readRate_(1); return json_(list_(req.kind));
       case "blobs": return json_(blobs_(req));                       // 依個數計入讀取限額（在函式內）
       case "deleteSample": requireDelete_(who); return json_(deleteSample_(req, who));
@@ -82,7 +82,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return json_({ ok: true, service: "lipread-upload", version: 5.1, turnstile: turnstileOn_() });
+  return json_({ ok: true, service: "lipread-upload", version: 5.2, turnstile: turnstileOn_() });
 }
 
 function json_(o) {
@@ -119,12 +119,13 @@ function minute_() {
 }
 
 // ───────── 計數器（加鎖遞增，避免同時送出時計數被蓋掉） ─────────
+// 拿不到鎖時一律拒絕（不放行）：鎖最忙的時候正是大量同時送出、最需要限流的時候
 function counter_(key) {
   return Number(CacheService.getScriptCache().get(key) || 0);
 }
 function bump_(key, by, ttl) {
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(3000)) return -1;   // 拿不到鎖就略過計數，不要讓請求卡住
+  if (!lock.tryLock(5000)) throw new Error("系統忙碌中，請稍後再試");
   try {
     var cache = CacheService.getScriptCache();
     var n = Number(cache.get(key) || 0) + by;
@@ -197,7 +198,10 @@ function authorize_(req) {
     return { role: "team", name: name ? "訪客：" + name : "訪客" };
   }
   if (req.token) {
-    // 每次驗證失敗都要連 GitHub，所以 token 一律先看失敗次數，並設每日上限
+    // 最近驗證成功過的 token 直接放行：別人狂送假 token 時，正在使用的人不會被一起擋掉
+    var known = cachedGitHub_(req.token);
+    if (known) return { role: "member", name: known };
+    // 每次驗證失敗都要連 GitHub，所以新的 token 一律先看失敗次數，並設每日上限
     if (tooManyFails_("token") || counter_("faild_token_" + today_()) >= CONFIG.TOKEN_FAILS_PER_DAY) throw new Error("嘗試太多次，請稍後再試");
     try {
       return { role: "member", name: verifyGitHub_(req.token) };
@@ -215,9 +219,14 @@ function turnstileOn_() {
   return !!prop_("TURNSTILE_SECRET");
 }
 
+/** Turnstile 回應的基本格式（Cloudflare 的 token 是幾百個字元的英數字串，最長 2048） */
+function turnstileShapeOk_(token) {
+  return typeof token === "string" && token.length >= 20 && token.length <= 2048 && /^[A-Za-z0-9._-]+$/.test(token);
+}
+
 /** 向 Cloudflare 確認人機驗證的結果；只接受來自我們網站網域的驗證。 */
 function verifyTurnstile_(token) {
-  if (typeof token !== "string" || !token || token.length > 4096) throw new Error("請先完成人機驗證");
+  if (!turnstileShapeOk_(token)) throw new Error("請先完成人機驗證");
   var res = UrlFetchApp.fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "post",
     payload: { secret: prop_("TURNSTILE_SECRET"), response: token },
@@ -268,10 +277,14 @@ function getSession_(token) {
 
 /** 登入：（開了 Turnstile 時先驗證）→ 檢查通關碼（和選填的管理員密碼）→ 發通行證。 */
 function login_(req) {
-  rate_("login", 1, CONFIG.LOGIN_PER_MINUTE, CONFIG.LOGIN_PER_DAY);
   var name = clean_(req.name, 30);
+  // 1) 不用連外的檢查先做：這些請求不佔登入名額，不然任何人都能用空請求把名額用光、讓大家登不進來
+  if (typeof req.code !== "string" || !req.code || req.code.length > 100) throw new Error("請輸入團隊通關碼");
+  if (req.adminCode != null && (typeof req.adminCode !== "string" || req.adminCode.length > 100)) throw new Error("管理員密碼格式不正確");
+  if (turnstileOn_() && !turnstileShapeOk_(req.turnstile)) throw new Error("請先完成人機驗證");
+  // 2) 只有「真的要連 Cloudflare」的請求才計數
+  rate_("login", 1, CONFIG.LOGIN_PER_MINUTE, CONFIG.LOGIN_PER_DAY);
   if (turnstileOn_()) verifyTurnstile_(req.turnstile);
-  if (!req.code) throw new Error("請輸入團隊通關碼");
   checkCode_("team", req.code, "TEAM_CODE", "通關碼錯誤");
   var who = { role: "team", name: name ? "訪客：" + name : "訪客" };
   if (req.adminCode) {
@@ -290,22 +303,41 @@ function requireDelete_(who) {
   if (who.role !== "admin" && who.role !== "member") throw new Error("刪除需要管理員密碼");
 }
 
-/** 用上傳者自己的 GitHub token 確認他能寫入資料 repo。成功快取 2 分鐘、失敗快取 10 分鐘。 */
+function ghKey_(token) {
+  return "gh_" + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
+}
+/** 只看快取：這個 token 最近驗證成功過就回傳 GitHub 帳號，否則回傳空字串（不連外） */
+function cachedGitHub_(token) {
+  if (typeof token !== "string" || token.length < 20 || token.length > 400) return "";
+  var hit = CacheService.getScriptCache().get(ghKey_(token));
+  return hit && hit !== "!" ? hit : "";
+}
+
+/**
+ * 用上傳者自己的 GitHub token 確認他能寫入資料 repo。成功快取 2 分鐘；
+ * 確定是錯的（401／403／404、沒有寫入權限）快取 10 分鐘。GitHub 暫時出錯（5xx、429）不快取，稍後重試就好。
+ */
 function verifyGitHub_(token) {
   if (typeof token !== "string" || token.length < 20 || token.length > 400) throw new Error("GitHub token 格式不正確");
-  var key = "gh_" + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
+  var key = ghKey_(token);
   var cache = CacheService.getScriptCache();
   var hit = cache.get(key);
   if (hit === "!") throw new Error("GitHub 驗證失敗");
   if (hit) return hit;
   var fail = function (msg) { cache.put(key, "!", 600); throw new Error(msg); };
+  var check = function (res, msg) {
+    var code = res.getResponseCode();
+    if (code === 200) return;
+    if (code === 401 || code === 403 || code === 404) fail(msg);
+    throw new Error("GitHub 暫時連不上（" + code + "），請稍後再試");
+  };
   var headers = { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
   var repoRes = UrlFetchApp.fetch("https://api.github.com/repos/" + CONFIG.GITHUB_OWNER + "/" + CONFIG.GITHUB_REPO, { headers: headers, muteHttpExceptions: true });
-  if (repoRes.getResponseCode() !== 200) fail("GitHub 驗證失敗：這個 token 沒有資料 repo 的權限");
+  check(repoRes, "GitHub 驗證失敗：這個 token 沒有資料 repo 的權限");
   var repo = JSON.parse(repoRes.getContentText());
   if (!repo.permissions || !repo.permissions.push) fail("需要資料 repo 的寫入權限");
   var userRes = UrlFetchApp.fetch("https://api.github.com/user", { headers: headers, muteHttpExceptions: true });
-  if (userRes.getResponseCode() !== 200) fail("GitHub 驗證失敗");
+  check(userRes, "GitHub 驗證失敗");
   var login = String(JSON.parse(userRes.getContentText()).login || "").slice(0, 60);
   cache.put(key, login, 120);
   return login;
@@ -566,9 +598,10 @@ function saveSample_(req, who) {
   var v = req.sample && req.sample.video;
   var driveId = v && typeof v.driveId === "string" && DRIVE_ID_RE.test(v.driveId) ? v.driveId : "";
   try {
+    rate_("save", 1, CONFIG.SAVE_PER_MINUTE);
     return writeSample_(req, who);
   } catch (err) {
-    // 存樣本失敗（格式、同意、GitHub 錯誤都算）：如果影片是剛剛這次流程上傳的，
+    // 存樣本失敗（限流、格式、同意、GitHub 錯誤都算）：如果影片是剛剛這次流程上傳的，
     // 丟進垃圾桶，不要留下沒有任何紀錄指向的人臉影片
     discardFreshUpload_(driveId);
     throw err;
