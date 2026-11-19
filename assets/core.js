@@ -981,7 +981,16 @@
     const dlg = buildSettingsDialog();
     document.body.append(dlg);
     chip.addEventListener("click", () => LR.openSettings());
-    if (opts && opts.autoOpen && !LR.mode()) setTimeout(() => LR.openSettings(), 300);
+    // 沒登入就鎖住整個頁面，只留登入視窗（真正的資料保護在後端：沒有通關碼讀不到任何資料）
+    const applyLock = () => {
+      const locked = !LR.mode();
+      document.body.classList.toggle("locked", locked);
+      document.documentElement.classList.remove("prelock");
+      if (locked && !dlg.open) LR.openSettings();
+    };
+    applyLock();
+    LR.events.addEventListener("connection", applyLock);
+    void opts;
   };
 
   function mouthIcon() {
@@ -1080,11 +1089,16 @@
       rememberDev.checked = LR.settings.remembered();
       rememberTeam.checked = t ? LR.team.remembered() : true;
       btnOff.hidden = !LR.mode();
+      btnCancel.hidden = !LR.mode(); // 還沒登入就不能取消
       status.className = "dialog-status";
       setTab(LR.mode() === "github" ? "github" : "team");
       dlg.showModal();
     };
-    btnCancel.addEventListener("click", () => dlg.close());
+    btnCancel.addEventListener("click", () => { if (LR.mode()) dlg.close(); });
+    // 按 Esc 也不能在未登入時關掉
+    dlg.addEventListener("cancel", (e) => { if (!LR.mode()) e.preventDefault(); });
+    // 有些瀏覽器不讓網頁攔 Esc；被關掉時只要還沒登入就立刻再打開（頁面內容本來就是隱藏的）
+    dlg.addEventListener("close", () => { if (!LR.mode()) setTimeout(() => { if (!dlg.open && !LR.mode()) dlg.showModal(); }, 0); });
     btnOff.addEventListener("click", () => {
       LR.settings.disconnect();
       LR.team.clear();

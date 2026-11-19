@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2a78d6">
 <title>前台輸入｜無聲溝通</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<script>
+  // 還沒登入就先把內容藏起來，等共用程式確認身分（避免畫面閃一下）
+  try {
+    var s = window.localStorage, ss = window.sessionStorage;
+    if (!(s.getItem("lr-team") || ss.getItem("lr-team") || s.getItem("lr-token") || ss.getItem("lr-token"))) document.documentElement.classList.add("prelock");
+  } catch (e) { document.documentElement.classList.add("prelock"); }
+</script>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
