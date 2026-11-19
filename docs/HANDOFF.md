@@ -212,5 +212,5 @@ window.fetch = async (url, opts = {}) => {
 
 - 後端已部署 v3（`doGet` 回傳 `version: 3`）
 - 資料 repo 已有 `data/schedule.json`（交接文件匯入的 9 項待辦）
-- `assets/config.js` 的 `contactFormUrl`（隱私權請求表單）還沒填；刻意不放信箱，避免公開 repo 被掃信箱
+- 隱私權請求表單：`assets/config.js` 的 `contactFormUrl`（Google 表單，回覆通知寄給專題負責人）；刻意不放信箱，避免公開 repo 被掃信箱
 - 隱私權政策版本 `2026-11-19`；改內容時請一併改 `privacyVersion`，所有人會被要求重新同意

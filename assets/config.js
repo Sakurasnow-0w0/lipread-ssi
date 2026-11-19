@@ -14,5 +14,5 @@ window.LR_CONFIG = {
   retentionYears: 1,
   // 隱私權請求表單（Google 表單的分享連結，https://forms.gle/… 或 https://docs.google.com/forms/d/e/…/viewform）
   // 不在這裡放信箱：這個檔案是公開的，信箱會被掃去寄垃圾信，而且會永遠留在 git 紀錄裡
-  contactFormUrl: "",
+  contactFormUrl: "https://forms.gle/eyEPJ6uAq2FcJoge6",
 };
