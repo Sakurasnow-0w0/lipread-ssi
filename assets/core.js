@@ -254,6 +254,38 @@
     return out.map((f) => f.map((v) => Math.round(v * 1e4) / 1e4));
   }
 
+  /** 即時檢查鏡頭畫面：臉在不在框內、距離、是否正對、光線。回傳 { ok, checks, res }。 */
+  let lumCanvas = null;
+  LR.checkFrame = function (video) {
+    if (!landmarker || !video.videoWidth) return null;
+    const res = landmarker.detect(video);
+    const checks = { face: false, center: null, size: null, front: null, light: null };
+    let nose = null, faceW = 0;
+    // 亮度：縮小成 32×24 取平均
+    lumCanvas = lumCanvas || Object.assign(document.createElement("canvas"), { width: 32, height: 24 });
+    const g = lumCanvas.getContext("2d", { willReadFrequently: true });
+    g.drawImage(video, 0, 0, 32, 24);
+    const px = g.getImageData(0, 0, 32, 24).data;
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    const lum = sum / (px.length / 4);
+    checks.light = lum < 55 ? "dark" : lum > 225 ? "bright" : "ok";
+    if (res && res.faceLandmarks && res.faceLandmarks.length) {
+      const lm = res.faceLandmarks[0];
+      checks.face = true;
+      nose = lm[1];
+      checks.center = nose.x > 0.3 && nose.x < 0.7 && nose.y > 0.28 && nose.y < 0.75 ? "ok" : "off";
+      faceW = Math.abs(lm[454].x - lm[234].x);
+      checks.size = faceW < 0.28 ? "far" : faceW > 0.78 ? "near" : "ok";
+      const W = video.videoWidth, H = video.videoHeight;
+      const d = (a, b) => Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
+      const ratio = d(nose, lm[33]) / (d(nose, lm[263]) || 1e-6);
+      checks.front = ratio > 0.62 && ratio < 1.6 ? "ok" : "turned";
+    }
+    const ok = checks.face && checks.center === "ok" && checks.size === "ok" && checks.front === "ok" && checks.light === "ok";
+    return { ok, checks, lum, nose: nose ? { x: nose.x, y: nose.y } : null, faceW };
+  };
+
   /** 讀一段影片，逐格抓嘴唇節點，回傳 { frames, lips, quality }。 */
   LR.extract = async function (file, { video, canvas, onProgress, shouldStop } = {}) {
     await LR.loadModel();

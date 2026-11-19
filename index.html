@@ -32,12 +32,142 @@
   <div class="layout">
     <div class="col-main">
       <div class="tabs" role="tablist" aria-label="輸入方式">
-        <button role="tab" id="tabbtn-upload" aria-controls="tab-upload" aria-selected="true" data-tab="upload">上傳影片</button>
+        <button role="tab" id="tabbtn-guide" aria-controls="tab-guide" aria-selected="true" data-tab="guide">引導錄影</button>
+        <button role="tab" id="tabbtn-upload" aria-controls="tab-upload" aria-selected="false" data-tab="upload">上傳影片</button>
         <button role="tab" id="tabbtn-recog" aria-controls="tab-recog" aria-selected="false" data-tab="recog">辨識測試</button>
       </div>
 
+      <!-- 引導錄影 -->
+      <section class="card" id="tab-guide" role="tabpanel" aria-labelledby="tabbtn-guide">
+        <div class="card-h">
+          <h2>引導錄影</h2>
+          <p>選一句要念的話，跟著畫面提示錄。每段長度、閉嘴時機都一樣，辨識會比較準。</p>
+        </div>
+
+        <details class="howto" id="howto">
+          <summary>📖 標準錄法示範（第一次錄請先看）</summary>
+          <div class="howto-grid">
+            <figure class="howto-fig">
+              <svg viewBox="0 0 220 200" role="img" aria-labelledby="figFrameT">
+                <title id="figFrameT">標準構圖：手機直拿、臉佔畫面約一半、嘴巴在畫面中下方</title>
+                <rect x="60" y="8" width="100" height="184" rx="16" class="f-phone"/>
+                <circle cx="110" cy="20" r="3" class="f-ink"/>
+                <rect x="68" y="32" width="84" height="148" rx="6" class="f-screen"/>
+                <ellipse cx="110" cy="96" rx="30" ry="40" class="f-face"/>
+                <ellipse cx="98" cy="86" rx="4" ry="2.5" class="f-ink"/>
+                <ellipse cx="122" cy="86" rx="4" ry="2.5" class="f-ink"/>
+                <path d="M99 114 q11 7 22 0" class="f-mouth"/>
+                <rect x="94" y="106" width="32" height="18" rx="3" class="f-guide"/>
+                <path d="M162 96 h18" class="f-line"/><text x="182" y="92" class="f-txt">臉佔</text><text x="182" y="105" class="f-txt">約一半</text>
+                <path d="M58 115 h-18" class="f-line"/><text x="2" y="111" class="f-txt">嘴巴</text><text x="2" y="124" class="f-txt">要清楚</text>
+              </svg>
+              <figcaption>手機<strong>直拿</strong>、與眼睛同高，距離約 <strong>30–50 公分</strong>；臉放進框裡、佔畫面約一半。</figcaption>
+            </figure>
+            <figure class="howto-fig">
+              <svg viewBox="0 0 220 200" role="img" aria-labelledby="figTimeT">
+                <title id="figTimeT">時間軸：閉嘴 0.5 秒、無聲念出 1 到 2 秒、閉嘴 0.5 秒</title>
+                <text x="10" y="40" class="f-txt b">一段影片的時間</text>
+                <rect x="10" y="60" width="44" height="34" rx="6" class="f-seg still"/>
+                <rect x="58" y="60" width="108" height="34" rx="6" class="f-seg speak"/>
+                <rect x="170" y="60" width="40" height="34" rx="6" class="f-seg still"/>
+                <text x="32" y="82" class="f-seg-t">閉嘴</text>
+                <text x="112" y="82" class="f-seg-t on">無聲念出</text>
+                <text x="190" y="82" class="f-seg-t">閉嘴</text>
+                <text x="32" y="114" class="f-txt c">0.5 秒</text>
+                <text x="112" y="114" class="f-txt c">1–2 秒</text>
+                <text x="190" y="114" class="f-txt c">0.5 秒</text>
+                <text x="10" y="150" class="f-txt">引導錄影會自動照這個節奏提示，</text>
+                <text x="10" y="166" class="f-txt">跟著畫面上的字做就好。</text>
+              </svg>
+              <figcaption>開頭、結尾都要<strong>閉嘴停一下</strong>，系統靠這段判斷「沒在說話」時的嘴型。</figcaption>
+            </figure>
+          </div>
+          <div class="dodont">
+            <div>
+              <h4>✓ 這樣做</h4>
+              <ul>
+                <li>正對鏡頭，頭不要歪</li>
+                <li>光從<strong>前方</strong>照過來（面對窗戶或檯燈）</li>
+                <li><strong>不出聲</strong>，嘴型清楚、用平常的速度</li>
+                <li>手機放穩（靠著東西或請人拿）</li>
+                <li>每句錄好幾次，最好分不同天錄</li>
+              </ul>
+            </div>
+            <div>
+              <h4>✗ 避免</h4>
+              <ul>
+                <li>戴口罩、用手遮到嘴巴</li>
+                <li>背對窗戶（逆光，臉會變黑）</li>
+                <li>側臉、低頭、離太遠</li>
+                <li>嘴型故意誇張，或念太快</li>
+                <li>一段影片裡念好幾句</li>
+              </ul>
+            </div>
+          </div>
+        </details>
+
+        <h3 class="step-h"><span>1</span>選要念的句子</h3>
+        <div class="phrase-now">
+          <div>
+            <div class="eyebrow">要念的是</div>
+            <div class="phrase-big" id="gPhrase">—</div>
+            <div class="help" id="gPhraseInfo">從下面挑一句，或按「隨機抽一句」</div>
+          </div>
+          <div class="phrase-actions">
+            <button class="btn" id="gRandom" type="button">🎲 隨機抽一句</button>
+            <label class="check"><input type="checkbox" id="gFirstOnly" checked><span>只抽建議首批</span></label>
+          </div>
+        </div>
+        <p class="help">隨機抽句會優先抽<strong>比較少人錄過</strong>的句子，讓每句的資料量平均。</p>
+        <div id="gBank" class="bank"></div>
+        <div class="field" style="margin-top:12px">
+          <label for="gCustom">或自己輸入</label>
+          <div class="inline-input"><input class="input" id="gCustom" maxlength="40" list="labelList" placeholder="例如：我要吃藥"><button class="btn" id="gCustomOk" type="button">使用</button></div>
+        </div>
+        <div class="ref-lip" id="gRef" hidden>
+          <div><div class="eyebrow">參考嘴型</div><p class="help" id="gRefInfo"></p></div>
+          <canvas class="lipcanvas" id="gRefCanvas"></canvas>
+        </div>
+
+        <h3 class="step-h"><span>2</span>對準鏡頭</h3>
+        <div class="cam" id="gCamBox">
+          <video id="gCam" playsinline webkit-playsinline muted autoplay></video>
+          <div class="cam-oval" id="gOval"><div class="cam-mouth"></div></div>
+          <div class="cam-cue" id="gCue" aria-live="assertive"></div>
+          <div class="cam-off" id="gCamOff">
+            <button class="btn primary lg" id="gCamStart" type="button">📷 開啟鏡頭</button>
+            <p class="help">畫面只在你的瀏覽器裡，不會直播或自動上傳。</p>
+          </div>
+        </div>
+        <ul class="cam-checks" id="gChecks">
+          <li data-k="face"><span class="ci">?</span><span class="ct">臉在框內</span></li>
+          <li data-k="size"><span class="ci">?</span><span class="ct">距離</span></li>
+          <li data-k="front"><span class="ci">?</span><span class="ct">正對鏡頭</span></li>
+          <li data-k="light"><span class="ci">?</span><span class="ct">光線</span></li>
+        </ul>
+
+        <h3 class="step-h"><span>3</span>開始錄</h3>
+        <div class="field-row">
+          <div class="field"><label for="gSpeaker">錄製者代號</label><input class="input" id="gSpeaker" maxlength="20" list="speakerList" placeholder="例如：A"></div>
+          <div class="field"><label for="gRepeat">同一句連續錄</label>
+            <select class="input" id="gRepeat" style="width:100%"><option value="1">1 次</option><option value="3">3 次</option><option value="5" selected>5 次</option><option value="10">10 次</option></select></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary lg" id="gRec" type="button">● 開始錄</button>
+          <button class="btn ghost danger" id="gStop" type="button" hidden>停止</button>
+        </div>
+        <div class="takes-box" id="gTakesBox" hidden>
+          <h3 class="subh" id="gTakesTitle">已錄好</h3>
+          <ul class="takes" id="gTakes"></ul>
+          <div class="actions">
+            <button class="btn primary" id="gUpload" type="button">上傳這些影片</button>
+            <button class="btn ghost danger" id="gClear" type="button">全部刪除</button>
+          </div>
+        </div>
+      </section>
+
       <!-- 上傳（可多段） -->
-      <section class="card" id="tab-upload" role="tabpanel" aria-labelledby="tabbtn-upload">
+      <section class="card" id="tab-upload" role="tabpanel" aria-labelledby="tabbtn-upload" hidden>
         <div class="card-h">
           <h2>上傳影片</h2>
           <p>可以一次選很多段。一段只念一句、1–3 秒；正面、光線均勻，開頭先閉嘴約半秒。</p>
@@ -144,6 +274,7 @@
 </main>
 
 <script src="assets/config.js"></script>
+<script src="assets/phrases.js"></script>
 <script src="assets/core.js"></script>
 <script>
 (function () {
@@ -167,11 +298,10 @@
       b.setAttribute("aria-selected", String(on));
       $("tab-" + b.dataset.tab).hidden = !on;
     }
+    if (name !== "guide") stopCam();
     LR.store.set("sessionStorage", "lr-tab", name);
   }
   tabs.forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
-  const savedTab = LR.store.get("sessionStorage", "lr-tab");
-  if (savedTab && $("tab-" + savedTab)) selectTab(savedTab);
 
   // ───────── 資料庫 ─────────
   async function refreshLibrary() {
@@ -226,6 +356,7 @@
       )));
     }
     updateButtons();
+    if (G.phrase) setPhrase(G.phrase); else renderBank();
   }
 
   let driveTouched = false;
@@ -422,6 +553,246 @@
     }, () => setBadge("失敗", "bad"));
   });
 
+  // ───────── 引導錄影 ─────────
+  const PHRASES = Array.isArray(window.LR_PHRASES) ? window.LR_PHRASES : [];
+  const G = { phrase: "", stream: null, timer: 0, recording: false, stop: false, takes: [], refPlayer: null, nextTake: 1 };
+  const REC_MIME = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
+    .find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
+  const cam = $("gCam");
+
+  function labelCounts() {
+    const m = new Map();
+    for (const s of S.samples) m.set(s.label, (m.get(s.label) || 0) + 1);
+    return m;
+  }
+
+  function renderBank() {
+    const counts = labelCounts();
+    const inBank = new Set(PHRASES.flatMap((c) => c.items));
+    const extra = [...counts.keys()].filter((l) => !inBank.has(l));
+    const groups = PHRASES.map((c) => ({ cat: c.cat, first: c.first, items: c.items }));
+    if (extra.length) groups.push({ cat: "資料庫裡的其他內容", items: extra });
+    $("gBank").replaceChildren(...groups.map((g) => el("div", { class: "bank-group" + (g.first ? " first" : "") },
+      el("div", { class: "bank-cat", text: g.cat + (g.first ? "　⭐" : "") }),
+      el("div", { class: "chips" }, g.items.map((p) => {
+        const n = counts.get(p) || 0;
+        const b = el("button", { type: "button", class: "chip phrase-chip" + (p === G.phrase ? " on" : ""), "aria-pressed": String(p === G.phrase) },
+          p, el("small", { class: n ? "" : "zero", text: n ? String(n) : "0" }));
+        b.addEventListener("click", () => setPhrase(p));
+        return b;
+      })))));
+  }
+
+  function setPhrase(p) {
+    G.phrase = LR.cleanText(p, LR.MAX_LABEL);
+    const n = labelCounts().get(G.phrase) || 0;
+    $("gPhrase").textContent = G.phrase || "—";
+    $("gPhraseInfo").textContent = G.phrase ? (n ? `資料庫已有 ${n} 段` : "資料庫還沒有人錄過這句") : "從下面挑一句，或按「隨機抽一句」";
+    renderBank();
+    // 參考嘴型：資料庫裡有人念過、而且有存嘴型座標
+    const ref = S.samples.filter((s) => s.label === G.phrase && s.lips).slice(-1)[0];
+    $("gRef").hidden = !ref;
+    if (ref) {
+      if (!G.refPlayer) G.refPlayer = new LR.LipPlayer($("gRefCanvas"));
+      G.refPlayer.speed = 0.6;
+      $("gRefInfo").textContent = `錄製者 ${ref.speaker || "—"} 念「${ref.label}」的嘴型（虛線是閉嘴時）`;
+      G.refPlayer.load(ref.lips);
+      G.refPlayer.play();
+    } else if (G.refPlayer) G.refPlayer.pause();
+    updateRecBtn();
+  }
+
+  // 隨機抽句：越少人錄過的越容易被抽到
+  $("gRandom").addEventListener("click", () => {
+    const counts = labelCounts();
+    let pool = PHRASES.filter((c) => !$("gFirstOnly").checked || c.first).flatMap((c) => c.items);
+    if (!pool.length) pool = PHRASES.flatMap((c) => c.items);
+    if (pool.length > 1) pool = pool.filter((p) => p !== G.phrase);
+    const w = pool.map((p) => 1 / Math.pow(1 + (counts.get(p) || 0), 2));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    let pick = pool[pool.length - 1];
+    for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) { pick = pool[i]; break; } }
+    setPhrase(pick);
+  });
+  $("gCustomOk").addEventListener("click", () => { const v = LR.cleanText($("gCustom").value, LR.MAX_LABEL); if (v) { setPhrase(v); $("gCustom").value = ""; } });
+  $("gCustom").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("gCustomOk").click(); } });
+
+  // 錄製者代號：記在這台裝置
+  $("gSpeaker").value = LR.store.get("localStorage", "lr-speaker") || "";
+  $("gSpeaker").addEventListener("change", () => LR.store.set("localStorage", "lr-speaker", LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER)));
+
+  // 第一次來，展開示範
+  if (!LR.store.get("localStorage", "lr-howto-seen")) $("howto").open = true;
+  $("howto").addEventListener("toggle", () => { if (!$("howto").open) LR.store.set("localStorage", "lr-howto-seen", "1"); });
+
+  // ───────── 鏡頭 ─────────
+  async function startCam() {
+    if (G.stream) return true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast("這個瀏覽器不能開相機（需要 HTTPS 網址）", "bad"); return false; }
+    if (!REC_MIME) { toast("這個瀏覽器不支援網頁錄影，請改用「上傳影片」分頁的「錄一段」", "warn", 8000); return false; }
+    try {
+      G.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false,
+      });
+    } catch (e) {
+      toast(e && e.name === "NotAllowedError" ? "需要允許使用相機才能錄影（網址列左邊的鎖頭可以重新開啟權限）" : "開不了相機：" + (e && e.message), "bad", 8000);
+      return false;
+    }
+    cam.srcObject = G.stream;
+    await cam.play().catch(() => {});
+    $("gCamOff").hidden = true;
+    $("gCamBox").classList.add("on");
+    try { await LR.loadModel(); } catch (e) { toast("臉部模型載入失敗，無法即時檢查：" + e.message, "warn"); }
+    clearInterval(G.timer);
+    G.timer = setInterval(checkTick, 300);
+    updateRecBtn();
+    return true;
+  }
+  function stopCam() {
+    if (G.recording) return;
+    clearInterval(G.timer);
+    if (G.stream) G.stream.getTracks().forEach((t) => t.stop());
+    G.stream = null;
+    cam.srcObject = null;
+    $("gCamOff").hidden = false;
+    $("gCamBox").classList.remove("on", "ready");
+    updateRecBtn();
+  }
+  $("gCamStart").addEventListener("click", startCam);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopCam(); });
+
+  const CHECK_TEXT = {
+    face: { ok: "臉在框內", off: "把臉移到框中間", bad: "找不到臉" },
+    size: { ok: "距離剛好", far: "太遠了，靠近一點", near: "太近了，退後一點" },
+    front: { ok: "正對鏡頭", turned: "頭轉正一點" },
+    light: { ok: "光線充足", dark: "太暗，找亮一點的地方", bright: "太亮或逆光" },
+  };
+  function setCheck(k, state) {
+    const li = $("gChecks").querySelector(`[data-k="${k}"]`);
+    const good = state === "ok";
+    li.className = state == null ? "" : good ? "ok" : "bad";
+    li.querySelector(".ci").textContent = state == null ? "?" : good ? "✓" : "!";
+    li.querySelector(".ct").textContent = state == null ? CHECK_TEXT[k].ok : (CHECK_TEXT[k][state] || CHECK_TEXT[k].ok);
+  }
+  function checkTick() {
+    if (!G.stream || document.hidden) return;
+    let r = null;
+    try { r = LR.checkFrame(cam); } catch { r = null; }
+    if (!r) return;
+    const c = r.checks;
+    setCheck("face", c.face ? (c.center === "ok" ? "ok" : "off") : "bad");
+    setCheck("size", c.face ? c.size : null);
+    setCheck("front", c.face ? c.front : null);
+    setCheck("light", c.light);
+    $("gCamBox").classList.toggle("ready", r.ok);
+  }
+
+  function updateRecBtn() {
+    $("gRec").disabled = G.recording || S.busy;
+    $("gRec").textContent = G.stream ? "● 開始錄" : "● 開鏡頭並開始錄";
+  }
+
+  // ───────── 錄影流程 ─────────
+  function cue(text, kind, ms) {
+    const c = $("gCue");
+    c.className = "cam-cue" + (kind ? " " + kind : "");
+    c.replaceChildren();
+    if (!text) return;
+    c.append(el("span", { class: "cue-text", text }));
+    if (ms) c.append(el("span", { class: "cue-bar", style: `animation-duration:${ms}ms` }));
+  }
+  const speakMs = (p) => Math.max(1400, Math.min(3600, 800 + 330 * [...p].length));
+
+  async function recordOnce(phrase, speaker) {
+    const rec = new MediaRecorder(G.stream, { mimeType: REC_MIME, videoBitsPerSecond: 2500000 });
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const stopped = new Promise((r) => (rec.onstop = r));
+    rec.start();
+    cue("閉嘴", "still", 650);
+    await LR.sleep(650);
+    if (G.stop) { rec.stop(); await stopped; return null; }
+    const ms = speakMs(phrase);
+    cue(phrase, "speak", ms);
+    await LR.sleep(ms);
+    cue("閉嘴", "still", 600);
+    await LR.sleep(600);
+    rec.stop();
+    await stopped;
+    cue("");
+    const type = REC_MIME.split(";")[0];
+    const ext = type === "video/mp4" ? "mp4" : "webm";
+    const d = new Date(), p2 = (x) => String(x).padStart(2, "0");
+    const name = `${phrase}_${speaker || "未填"}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}-${G.nextTake++}.${ext}`;
+    return new File([new Blob(chunks, { type })], name, { type });
+  }
+
+  $("gRec").addEventListener("click", async () => {
+    if (!G.phrase) { toast("先在上面選一句要念的話", "warn"); $("gBank").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    if (!(await startCam())) return;
+    const speaker = LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER);
+    if (!speaker) { toast("請填錄製者代號（同一個人每次都用同一個）", "warn"); $("gSpeaker").focus(); return; }
+    LR.store.set("localStorage", "lr-speaker", speaker);
+    const n = Number($("gRepeat").value) || 1;
+    G.recording = true; G.stop = false;
+    $("gStop").hidden = false; updateRecBtn();
+    $("gCamBox").scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      for (const k of ["3", "2", "1"]) { if (G.stop) break; cue(k, "count"); await LR.sleep(700); }
+      for (let i = 0; i < n && !G.stop; i++) {
+        const f = await recordOnce(G.phrase, speaker);
+        if (f) addTake(f, G.phrase, speaker);
+        if (i < n - 1 && !G.stop) { cue(`休息一下・下一次 ${i + 2} / ${n}`, "rest", 1300); await LR.sleep(1300); }
+      }
+      cue(G.stop ? "已停止" : "完成！", "done");
+      setTimeout(() => cue(""), 1200);
+    } catch (e) {
+      toast("錄影失敗：" + e.message, "bad");
+      cue("");
+    } finally {
+      G.recording = false;
+      $("gStop").hidden = true; updateRecBtn();
+    }
+  });
+  $("gStop").addEventListener("click", () => { G.stop = true; });
+
+  function addTake(file, label, speaker) {
+    G.takes.push({ file, label, speaker, url: URL.createObjectURL(file) });
+    renderTakes();
+  }
+  function renderTakes() {
+    $("gTakesBox").hidden = !G.takes.length;
+    $("gTakesTitle").textContent = `已錄好 ${G.takes.length} 段（還沒上傳）`;
+    $("gTakes").replaceChildren(...G.takes.map((t, i) => {
+      const v = el("video", { src: t.url, muted: true, playsinline: true, preload: "metadata", class: "take-v" });
+      v.addEventListener("click", () => { v.currentTime = 0; v.play().catch(() => {}); });
+      const del = el("button", { class: "icon-btn", type: "button", "aria-label": "刪除這段", title: "刪除", text: "×" });
+      del.addEventListener("click", () => { URL.revokeObjectURL(t.url); G.takes.splice(i, 1); renderTakes(); });
+      return el("li", { class: "take" }, v,
+        el("div", { class: "take-info" }, el("strong", { text: t.label }), el("small", { text: `錄製者 ${t.speaker}・${LR.fmtSize(t.file.size)}・點影片播放` })), del);
+    }));
+  }
+  $("gClear").addEventListener("click", () => {
+    if (!confirm(`刪除這 ${G.takes.length} 段還沒上傳的影片？`)) return;
+    G.takes.forEach((t) => URL.revokeObjectURL(t.url));
+    G.takes = []; renderTakes();
+  });
+  $("gUpload").addEventListener("click", () => {
+    if (!G.takes.length) return;
+    if (!LR.gh.connected()) { toast("要先登入才能上傳", "warn"); LR.openSettings(); return; }
+    for (const t of G.takes) {
+      S.queue.push({ id: S.nextId++, file: t.file, label: t.label, speaker: t.speaker, checked: false, status: "pending", note: "" });
+      URL.revokeObjectURL(t.url);
+    }
+    const n = G.takes.length;
+    G.takes = []; renderTakes();
+    stopCam();
+    selectTab("upload");
+    renderQueue();
+    toast(`已把 ${n} 段加入上傳清單，開始處理`, "info");
+    $("runUpload").click();
+  });
+
   // ───────── 辨識 ─────────
   function setRecog(f) {
     if (!f) return;
@@ -500,6 +871,9 @@
     $("recogResult").hidden = false;
   }
 
+  const savedTab = LR.store.get("sessionStorage", "lr-tab");
+  if (savedTab && $("tab-" + savedTab)) selectTab(savedTab);
+  renderBank();
   renderDriveOpt();
   refreshLibrary();
   LR.loadModel().catch((e) => toast("臉部模型載入失敗：" + e.message + "（需要連網）", "bad", 9000));
