@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前台輸入｜無聲溝通</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header id="appbar" class="appbar"></header>
+
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>資料輸入</h1>
+      <p class="lede">上傳無聲口型影片、標註念的內容。系統會自動抓出嘴唇節點，把口型數據存進 GitHub，影片本身留在 Google 雲端硬碟。</p>
+    </div>
+    <div id="libStatus" class="badge muted">未連線</div>
+  </div>
+
+  <div class="layout">
+    <div class="col-main">
+      <div class="tabs" role="tablist" aria-label="輸入方式">
+        <button role="tab" id="tabbtn-single" aria-controls="tab-single" aria-selected="true" data-tab="single">單段上傳</button>
+        <button role="tab" id="tabbtn-batch" aria-controls="tab-batch" aria-selected="false" data-tab="batch">雲端資料夾批次</button>
+        <button role="tab" id="tabbtn-recog" aria-controls="tab-recog" aria-selected="false" data-tab="recog">辨識測試</button>
+      </div>
+
+      <!-- 單段上傳 -->
+      <section class="card" id="tab-single" role="tabpanel" aria-labelledby="tabbtn-single">
+        <div class="card-h">
+          <h2>上傳一段影片</h2>
+          <p>一段只念一句、1–3 秒；正面、光線均勻，開頭先閉嘴約半秒。</p>
+        </div>
+        <label class="drop" id="dropSingle">
+          <input type="file" accept="video/*" id="fileSingle" hidden>
+          <span class="drop-icon" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/></svg>
+          </span>
+          <span class="drop-title">拖曳影片到這裡，或點擊選擇</span>
+          <span class="drop-sub">可直接到 Google 雲端硬碟的同步資料夾選取</span>
+          <span class="drop-file" id="fileSingleName"></span>
+        </label>
+
+        <div class="field">
+          <label for="labelInput">念的內容</label>
+          <input class="input" id="labelInput" list="labelList" maxlength="40" placeholder="例如：我要喝水" autocomplete="off">
+          <datalist id="labelList"></datalist>
+          <div class="chips" id="labelChips" aria-label="資料庫已有的內容"></div>
+        </div>
+        <div class="field">
+          <label for="speakerInput">錄製者代號</label>
+          <input class="input" id="speakerInput" list="speakerList" maxlength="20" placeholder="例如：A" autocomplete="off">
+          <datalist id="speakerList"></datalist>
+          <p class="help">同一個人每次都用同一個代號，跨錄製者評估會用到。</p>
+        </div>
+
+        <ol class="steps" id="stepsSingle">
+          <li data-step="read">載入模型</li>
+          <li data-step="extract">抓取口型</li>
+          <li data-step="save">儲存</li>
+        </ol>
+        <div class="actions">
+          <button class="btn primary lg" id="saveSingle">分析口型並儲存到 GitHub</button>
+          <span class="help" id="saveHint"></span>
+        </div>
+      </section>
+
+      <!-- 批次 -->
+      <section class="card" id="tab-batch" role="tabpanel" aria-labelledby="tabbtn-batch" hidden>
+        <div class="card-h">
+          <h2>從雲端資料夾批次匯入</h2>
+          <p>電腦裝好「Google 雲端硬碟」後，共用資料夾會出現在檔案總管（例如 <code>G:\共用雲端硬碟\唇語影片</code>）。選那個資料夾，系統依檔名自動標註，處理過的影片會自動略過。</p>
+        </div>
+        <div class="naming">檔名格式 <code>念的內容_錄製者_編號.mp4</code> 例如 <code>我要喝水_A_01.mp4</code></div>
+        <div class="actions">
+          <button class="btn" id="pickFolder">選擇資料夾</button>
+          <input type="file" id="folderInput" webkitdirectory multiple hidden>
+          <button class="btn primary" id="runBatch" disabled>開始處理</button>
+          <button class="btn ghost danger" id="stopBatch" hidden>停止</button>
+        </div>
+        <div class="batch-summary" id="batchSummary"></div>
+        <div class="table-wrap" id="batchWrap" hidden>
+          <table class="table">
+            <thead><tr><th>檔案</th><th>念的內容</th><th>錄製者</th><th>狀態</th></tr></thead>
+            <tbody id="batchBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 辨識 -->
+      <section class="card" id="tab-recog" role="tabpanel" aria-labelledby="tabbtn-recog" hidden>
+        <div class="card-h">
+          <h2>辨識測試</h2>
+          <p>上傳一段新影片，系統會跟資料庫裡所有範本比對，找出最像的內容並唸出來。</p>
+        </div>
+        <label class="drop" id="dropRecog">
+          <input type="file" accept="video/*" id="fileRecog" hidden>
+          <span class="drop-icon" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+          </span>
+          <span class="drop-title">拖曳要辨識的影片，或點擊選擇</span>
+          <span class="drop-sub">只能認出資料庫裡已有的內容</span>
+          <span class="drop-file" id="fileRecogName"></span>
+        </label>
+        <div class="actions">
+          <button class="btn primary lg" id="runRecog">開始辨識</button>
+          <label class="check"><input type="checkbox" id="autoSpeak" checked><span>自動唸出結果</span></label>
+        </div>
+        <div class="recog-result" id="recogResult" hidden></div>
+      </section>
+    </div>
+
+    <aside class="col-side">
+      <section class="card">
+        <div class="card-h row">
+          <h2>口型追蹤</h2>
+          <span class="badge muted" id="previewBadge">待命</span>
+        </div>
+        <div class="stage">
+          <video id="video" muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <div class="stage-empty" id="stageEmpty">選擇影片後，這裡會顯示<br>偵測到的嘴唇節點</div>
+        </div>
+        <div class="meter"><div class="meter-bar" id="meterBar"></div></div>
+        <dl class="stats">
+          <div><dt>影格</dt><dd id="stFrames">—</dd></div>
+          <div><dt>抓到臉</dt><dd id="stFound">—</dd></div>
+          <div><dt>長度</dt><dd id="stDur">—</dd></div>
+        </dl>
+      </section>
+      <section class="card">
+        <div class="card-h row">
+          <h2>最近上傳</h2>
+          <a class="link" href="report.html">看分析報告 →</a>
+        </div>
+        <ul class="recent" id="recentList"></ul>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script>
+(function () {
+  "use strict";
+  const { el, toast } = LR;
+  const $ = (id) => document.getElementById(id);
+  LR.mountHeader("input");
+  LR.initTooltip();
+
+  const S = { samples: [], weights: null, loading: false, busy: false, stop: false, single: null, recog: null, batch: [], previewUrl: null };
+  const video = $("video"), overlay = $("overlay");
+
+  // ───────── 分頁 ─────────
+  const tabs = [...document.querySelectorAll(".tabs [data-tab]")];
+  function selectTab(name) {
+    for (const b of tabs) {
+      const on = b.dataset.tab === name;
+      b.setAttribute("aria-selected", String(on));
+      $("tab-" + b.dataset.tab).hidden = !on;
+    }
+    LR.store.set("sessionStorage", "lr-tab", name);
+  }
+  tabs.forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+  const savedTab = LR.store.get("sessionStorage", "lr-tab");
+  if (savedTab && $("tab-" + savedTab)) selectTab(savedTab);
+
+  // ───────── 資料庫 ─────────
+  async function refreshLibrary() {
+    S.samples = []; S.weights = null;
+    if (!LR.gh.connected()) { renderLibrary(); return; }
+    S.loading = true; renderLibrary();
+    try {
+      const r = await LR.gh.loadSamples();
+      S.samples = r.samples;
+      if (r.bad) toast(`有 ${r.bad} 筆樣本格式不正確，已略過`, "warn");
+      if (r.truncated) toast("repo 檔案太多，GitHub 只回傳部分清單", "warn");
+    } catch (e) {
+      toast(e.message, "bad");
+    } finally {
+      S.loading = false;
+      renderLibrary();
+      markBatchExisting();
+      renderBatch();
+    }
+  }
+  LR.events.addEventListener("connection", refreshLibrary);
+
+  function counts(key) {
+    const m = new Map();
+    for (const s of S.samples) if (s[key]) m.set(s[key], (m.get(s[key]) || 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }
+
+  function renderLibrary() {
+    const on = LR.gh.connected();
+    const ls = $("libStatus");
+    if (!on) { ls.textContent = "未連線 GitHub"; ls.className = "badge warn"; }
+    else if (S.loading) { ls.textContent = "讀取資料庫中…"; ls.className = "badge muted"; }
+    else {
+      const labels = counts("label").length, speakers = counts("speaker").length;
+      ls.textContent = `資料庫 ${S.samples.length} 段・${labels} 種內容・${speakers} 位錄製者`;
+      ls.className = "badge accent";
+    }
+    $("saveSingle").textContent = on ? "分析口型並儲存到 GitHub" : "分析口型並下載 JSON";
+    $("saveHint").textContent = on ? "" : "尚未連線 GitHub，結果會下載成檔案。";
+    $("stepsSingle").querySelector('[data-step="save"]').textContent = on ? "存到 GitHub" : "下載檔案";
+
+    const lab = counts("label"), spk = counts("speaker");
+    $("labelList").replaceChildren(...lab.map(([l]) => el("option", { value: l })));
+    $("speakerList").replaceChildren(...spk.map(([l]) => el("option", { value: l })));
+    $("labelChips").replaceChildren(...lab.slice(0, 14).map(([l, n]) =>
+      el("button", { type: "button", class: "chip", onclick: () => { $("labelInput").value = l; } }, l, el("small", { text: String(n) }))
+    ));
+
+    const list = $("recentList");
+    const recent = S.samples.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 6);
+    if (!recent.length) {
+      list.replaceChildren(el("li", { class: "empty-line", text: on ? (S.loading ? "讀取中…" : "資料庫還沒有樣本") : "連線 GitHub 後會顯示" }));
+    } else {
+      list.replaceChildren(...recent.map((s) => el("li", null,
+        el("div", null, el("strong", { text: s.label }),
+          el("div", { class: "meta", text: `錄製者 ${s.speaker || "—"}${s.createdBy ? "・" + s.createdBy : ""}` })),
+        el("time", { datetime: s.createdAt, text: LR.fmtDate(s.createdAt) })
+      )));
+    }
+    updateButtons();
+  }
+
+  function updateButtons() {
+    $("saveSingle").disabled = S.busy;
+    $("runRecog").disabled = S.busy;
+    $("pickFolder").disabled = S.busy;
+    $("runBatch").disabled = S.busy || !S.batch.some((r) => r.status === "pending");
+  }
+
+  // ───────── 預覽 ─────────
+  function setBadge(text, kind) { const b = $("previewBadge"); b.textContent = text; b.className = "badge " + (kind || "muted"); }
+  function resetMeter() { $("meterBar").style.width = "0"; $("stFrames").textContent = "—"; $("stFound").textContent = "—"; $("stDur").textContent = "—"; }
+  function showPreview(file) {
+    if (S.previewUrl) URL.revokeObjectURL(S.previewUrl);
+    S.previewUrl = URL.createObjectURL(file);
+    video.src = S.previewUrl;
+    overlay.getContext("2d").clearRect(0, 0, overlay.width, overlay.height);
+    $("stageEmpty").hidden = true;
+    resetMeter();
+    setBadge("已載入", "muted");
+    video.addEventListener("loadedmetadata", () => {
+      if (Number.isFinite(video.duration)) $("stDur").textContent = video.duration.toFixed(1) + " 秒";
+      video.currentTime = 0.05;
+    }, { once: true });
+  }
+  function onProgress(p) {
+    $("meterBar").style.width = (p.i / p.n * 100).toFixed(1) + "%";
+    $("stFrames").textContent = `${p.i} / ${p.n}`;
+    $("stFound").textContent = LR.pct(p.found / p.i);
+    $("stDur").textContent = p.dur.toFixed(1) + " 秒";
+  }
+
+  // ───────── 共用：檔案拖放 ─────────
+  function wireDrop(dropId, inputId, onFile) {
+    const drop = $(dropId), input = $(inputId);
+    input.addEventListener("change", () => { if (input.files[0]) onFile(input.files[0]); input.value = ""; });
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault(); drop.classList.remove("drag");
+      const f = e.dataTransfer.files[0];
+      if (f) onFile(f);
+    });
+  }
+
+  async function guard(fn, onError) {
+    if (S.busy) return;
+    S.busy = true; updateButtons();
+    try { await fn(); }
+    catch (e) { console.error(e); toast(e.message || String(e), "bad", 7000); if (onError) onError(e); }
+    finally { S.busy = false; updateButtons(); }
+  }
+
+  // ───────── 單段上傳 ─────────
+  wireDrop("dropSingle", "fileSingle", (f) => {
+    if (!LR.isVideoFile(f)) { toast("這不是影片檔", "bad"); return; }
+    S.single = f;
+    $("dropSingle").classList.add("has-file");
+    $("fileSingleName").textContent = `${f.name}・${(f.size / 1048576).toFixed(1)} MB`;
+    const p = LR.parseVideoName(f.name);
+    if (p.label && !$("labelInput").value.trim()) $("labelInput").value = p.label;
+    if (p.speaker && !$("speakerInput").value.trim()) $("speakerInput").value = p.speaker;
+    resetSteps();
+    showPreview(f);
+  });
+
+  const stepsEl = $("stepsSingle");
+  function resetSteps() { stepsEl.querySelectorAll("li").forEach((li) => (li.className = "")); }
+  function setStep(key, state) { stepsEl.querySelector(`[data-step="${key}"]`).className = state; }
+
+  $("saveSingle").addEventListener("click", () => {
+    const f = S.single;
+    const label = LR.cleanText($("labelInput").value, LR.MAX_LABEL);
+    const speaker = LR.cleanText($("speakerInput").value, LR.MAX_SPEAKER);
+    if (!f) { toast("請先選擇影片", "warn"); return; }
+    if (!label) { toast("請輸入這段影片念的內容", "warn"); $("labelInput").focus(); return; }
+    let current = "read";
+    guard(async () => {
+      resetSteps();
+      setStep("read", "active"); setBadge("載入模型", "accent");
+      await LR.loadModel();
+      setStep("read", "done");
+      current = "extract"; setStep("extract", "active"); setBadge("分析中", "accent");
+      const r = await LR.extract(f, { video, canvas: overlay, onProgress });
+      setStep("extract", "done");
+      current = "save"; setStep("save", "active");
+      const sample = LR.newSample({ label, speaker, frames: r.frames, quality: r.quality, file: f, author: LR.settings.get().login });
+      if (LR.gh.connected()) {
+        await LR.gh.putSample(sample);
+        S.samples.push(sample); S.weights = null;
+        toast(`已存到 GitHub：「${label}」`, "good");
+      } else {
+        LR.download(`${sample.id}.json`, JSON.stringify(sample));
+        toast("尚未連線 GitHub，已下載 JSON 檔", "warn");
+      }
+      setStep("save", "done"); setBadge("完成", "good");
+      S.single = null;
+      $("dropSingle").classList.remove("has-file");
+      $("fileSingleName").textContent = "";
+      renderLibrary();
+    }, () => { setStep(current, "error"); setBadge("失敗", "bad"); });
+  });
+
+  // ───────── 批次 ─────────
+  $("pickFolder").addEventListener("click", () => $("folderInput").click());
+  $("folderInput").addEventListener("change", () => {
+    const files = [...$("folderInput").files].filter(LR.isVideoFile);
+    $("folderInput").value = "";
+    if (!files.length) { toast("這個資料夾裡沒有影片", "warn"); return; }
+    files.sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, "zh-Hant"));
+    S.batch = files.map((file) => {
+      const p = LR.parseVideoName(file.name);
+      return { file, label: p.label, speaker: p.speaker, status: p.label ? "pending" : "invalid", note: p.label ? "" : "檔名格式不符" };
+    });
+    markBatchExisting();
+    renderBatch();
+  });
+
+  function markBatchExisting() {
+    const have = new Set(S.samples.map((s) => `${s.label}|${s.speaker}|${s.video.name}`));
+    for (const r of S.batch) {
+      const key = `${r.label}|${r.speaker}|${r.file.name}`;
+      if (r.status === "pending" && have.has(key)) r.status = "exists";
+      else if (r.status === "exists" && !have.has(key)) r.status = "pending";
+    }
+  }
+
+  const STATUS = {
+    pending: ["待處理", "muted"], exists: ["已在資料庫", "muted"], invalid: ["檔名不符", "warn"],
+    running: ["分析中", "accent"], done: ["完成", "good"], error: ["失敗", "bad"],
+  };
+  function renderBatch() {
+    $("batchWrap").hidden = !S.batch.length;
+    $("batchBody").replaceChildren(...S.batch.map((r) => {
+      const [text, kind] = STATUS[r.status];
+      const badge = el("span", { class: "badge " + kind, text: r.note && r.status !== "running" ? `${text}：${r.note}` : (r.status === "running" && r.note ? `${text} ${r.note}` : text) });
+      r.badge = badge;
+      return el("tr", null,
+        el("td", { class: "file", title: r.file.webkitRelativePath || r.file.name, text: r.file.name }),
+        el("td", { text: r.label || "—" }),
+        el("td", { text: r.speaker || "—" }),
+        el("td", null, badge)
+      );
+    }));
+    const c = {};
+    for (const r of S.batch) c[r.status] = (c[r.status] || 0) + 1;
+    const sum = $("batchSummary");
+    sum.replaceChildren(...(S.batch.length ? [
+      el("span", { class: "badge", text: `共 ${S.batch.length} 段` }),
+      c.pending ? el("span", { class: "badge accent", text: `待處理 ${c.pending}` }) : null,
+      c.exists ? el("span", { class: "badge muted", text: `已處理過 ${c.exists}` }) : null,
+      c.done ? el("span", { class: "badge good", text: `✓ 完成 ${c.done}` }) : null,
+      c.invalid ? el("span", { class: "badge warn", text: `▲ 檔名不符 ${c.invalid}` }) : null,
+      c.error ? el("span", { class: "badge bad", text: `! 失敗 ${c.error}` }) : null,
+    ].filter(Boolean) : []));
+    $("runBatch").textContent = c.pending ? `開始處理 ${c.pending} 段` : "開始處理";
+    updateButtons();
+  }
+
+  $("stopBatch").addEventListener("click", () => { S.stop = true; $("stopBatch").disabled = true; });
+  $("runBatch").addEventListener("click", () => guard(async () => {
+    S.stop = false;
+    $("stopBatch").hidden = false; $("stopBatch").disabled = false;
+    const connected = LR.gh.connected();
+    const offline = [];
+    try {
+      await LR.loadModel();
+      for (const r of S.batch) {
+        if (S.stop) break;
+        if (r.status !== "pending") continue;
+        r.status = "running"; r.note = ""; renderBatch();
+        $("stageEmpty").hidden = true;
+        setBadge(r.file.name, "accent");
+        try {
+          const res = await LR.extract(r.file, {
+            video, canvas: overlay, shouldStop: () => S.stop,
+            onProgress: (p) => { onProgress(p); r.badge.textContent = `分析中 ${Math.round(p.i / p.n * 100)}%`; },
+          });
+          const sample = LR.newSample({ label: r.label, speaker: r.speaker, frames: res.frames, quality: res.quality, file: r.file, author: LR.settings.get().login });
+          if (connected) { r.badge.textContent = "上傳中"; await LR.gh.putSample(sample); S.samples.push(sample); }
+          else offline.push(sample);
+          r.status = "done"; r.note = "";
+        } catch (e) {
+          if (S.stop) { r.status = "pending"; r.note = ""; break; }
+          r.status = "error"; r.note = e.message;
+          if (e.status === 401 || e.status === 403) { renderBatch(); throw e; }
+        }
+        renderBatch();
+      }
+    } finally {
+      $("stopBatch").hidden = true;
+      S.weights = null;
+      if (offline.length) {
+        LR.download(`samples-${LR.newId()}.json`, JSON.stringify(offline));
+        toast(`尚未連線 GitHub，已把 ${offline.length} 段下載成一個 JSON 檔`, "warn");
+      }
+      setBadge(S.stop ? "已停止" : "批次完成", S.stop ? "warn" : "good");
+      renderBatch(); renderLibrary();
+    }
+    const done = S.batch.filter((r) => r.status === "done").length;
+    if (done && connected) toast(`批次完成：${done} 段已存到 GitHub`, "good");
+  }));
+
+  // ───────── 辨識 ─────────
+  wireDrop("dropRecog", "fileRecog", (f) => {
+    if (!LR.isVideoFile(f)) { toast("這不是影片檔", "bad"); return; }
+    S.recog = f;
+    $("dropRecog").classList.add("has-file");
+    $("fileRecogName").textContent = `${f.name}・${(f.size / 1048576).toFixed(1)} MB`;
+    $("recogResult").hidden = true;
+    showPreview(f);
+  });
+
+  function speak(text) {
+    if (!("speechSynthesis" in window)) { toast("這個瀏覽器不支援語音", "warn"); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "zh-TW";
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+
+  $("runRecog").addEventListener("click", () => {
+    if (!S.recog) { toast("請先選擇要辨識的影片", "warn"); return; }
+    const labels = new Set(S.samples.map((s) => s.label));
+    if (!LR.gh.connected()) { toast("要先連線 GitHub 才能取得範本", "warn"); LR.openSettings(); return; }
+    if (labels.size < 2) { toast("資料庫至少要有 2 種內容才能辨識", "warn"); return; }
+    guard(async () => {
+      setBadge("分析中", "accent");
+      const file = S.recog;
+      const r = await LR.extract(file, { video, canvas: overlay, onProgress });
+      if (!S.weights) S.weights = LR.weights(S.samples);
+      const ranked = LR.classify(r.frames, S.samples, S.weights);
+      setBadge("辨識完成", "good");
+      renderRecog(ranked, r, file);
+      if ($("autoSpeak").checked) speak(ranked[0].label);
+    }, () => setBadge("失敗", "bad"));
+  });
+
+  function renderRecog(ranked, r, file) {
+    const top = ranked[0];
+    const box = $("recogResult");
+    const best = top.dist;
+    const rows = ranked.slice(0, 5).map((x) => {
+      const rel = best / x.dist; // 1 = 跟第一名一樣像
+      return el("li", null,
+        el("span", { class: "name", text: x.label }),
+        el("span", { class: "track", "data-tip": `${x.label}\n距離 ${x.dist.toFixed(3)}（越小越像）\n最接近的範本：錄製者 ${x.sample.speaker || "—"}` },
+          el("span", { class: "fill", style: `width:${(rel * 100).toFixed(1)}%` })),
+        el("span", { class: "val", text: x.dist.toFixed(3) })
+      );
+    });
+    const fbLabel = el("input", { class: "input", value: top.label, maxlength: "40", "aria-label": "正確答案" });
+    const fbSpeaker = el("input", { class: "input", placeholder: "錄製者代號", maxlength: "20", "aria-label": "錄製者代號" });
+    const fbBtn = el("button", { class: "btn", type: "button", text: "加入資料庫" });
+    fbBtn.addEventListener("click", () => {
+      const label = LR.cleanText(fbLabel.value, LR.MAX_LABEL);
+      const speaker = LR.cleanText(fbSpeaker.value, LR.MAX_SPEAKER);
+      if (!label) { toast("請填正確答案", "warn"); return; }
+      guard(async () => {
+        const sample = LR.newSample({ label, speaker, frames: r.frames, quality: r.quality, file, author: LR.settings.get().login });
+        await LR.gh.putSample(sample);
+        S.samples.push(sample); S.weights = null;
+        fbBtn.disabled = true; fbBtn.textContent = "已加入";
+        toast(`已把這段加入資料庫：「${label}」`, "good");
+        renderLibrary();
+      });
+    });
+    box.replaceChildren(
+      el("div", { class: "recog-top" },
+        el("div", null, el("div", { class: "eyebrow", text: "辨識結果" }), el("div", { class: "recog-word", text: top.label })),
+        el("button", { class: "btn", type: "button", onclick: () => speak(top.label) }, "▶ 唸出來")
+      ),
+      el("ol", { class: "rank", "aria-label": "最像的前幾名" }, rows),
+      el("p", { class: "help", text: "長條越長代表越接近第一名；右邊數字是距離，越小越像。" }),
+      el("div", { class: "feedback" },
+        el("strong", { text: "把這段也加入資料庫？" }),
+        el("p", { class: "help", text: "答對就直接加入；答錯先改成正確答案。範本越多越準。" }),
+        el("div", { class: "field-row" }, fbLabel, fbSpeaker),
+        el("div", { class: "actions", style: "margin-top:10px" }, fbBtn)
+      )
+    );
+    box.hidden = false;
+  }
+
+  refreshLibrary();
+  LR.loadModel().catch((e) => toast("臉部模型載入失敗：" + e.message + "（需要連網，並用 Chrome 或 Edge）", "bad", 9000));
+})();
+</script>
+</body>
+</html>

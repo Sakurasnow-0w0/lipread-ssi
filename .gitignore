@@ -1,0 +1,18 @@
+# 影片含人臉，放 Google 雲端硬碟，不進 git
+*.mp4
+*.m4v
+*.mov
+*.webm
+*.mkv
+*.avi
+
+# 密鑰與本機設定
+.env
+.env.*
+*.token
+secrets*
+
+# 系統檔
+.DS_Store
+Thumbs.db
+desktop.ini
