@@ -395,8 +395,15 @@
       checks.front = ratio > 0.62 && ratio < 1.6 ? "ok" : "turned";
     }
     const ok = checks.face && checks.center === "ok" && checks.size === "ok" && checks.front === "ok" && checks.light === "ok";
-    return { ok, checks, lum, nose: nose ? { x: nose.x, y: nose.y } : null, faceW, box: checks.face ? mouthBox(res, video.videoWidth, video.videoHeight) : null };
+    return { ok, checks, lum, nose: nose ? { x: nose.x, y: nose.y } : null, faceW, box: checks.face ? mouthBox(res, video.videoWidth, video.videoHeight) : null, lipPts: checks.face ? lipPoints(res) : null };
   };
+
+  // 嘴唇節點在畫面上的位置（0–1 的相對座標，未鏡像）：外圈 20 點接著內圈 20 點。給錄影頁即時畫在鏡頭上用
+  function lipPoints(res) {
+    const lm = res.faceLandmarks[0], out = [];
+    for (const i of LIP_OUTER.concat(LIP_INNER)) out.push(lm[i].x, lm[i].y);
+    return out;
+  }
 
   // 嘴唇外圈的範圍（像素），用來裁出「只有嘴巴」的畫面
   function mouthBox(res, W, H) {
@@ -413,7 +420,7 @@
     const res = landmarker.detect(video);
     const feature = frameFeature(res, W, H);
     if (!feature) return { feature: null };
-    return { feature, lips: lipShape(res, W, H), box: mouthBox(res, W, H) };
+    return { feature, lips: lipShape(res, W, H), box: mouthBox(res, W, H), lipPts: lipPoints(res) };
   };
 
   /** 把錄影時收集的逐格結果整理成跟 LR.extract 一樣的格式（重新取樣成每秒 25 格）。 */
