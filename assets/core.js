@@ -28,8 +28,14 @@
     ["mouthLowerDownLeft", "mouthLowerDownRight"], ["mouthUpperUpLeft", "mouthUpperUpRight"],
   ];
   const DIM = BS_GROUPS.length + 4;
+  // 嘴唇外圈、內圈各 20 點（依輪廓順序），用來存座標做嘴型重播
+  const LIP_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
+  const LIP_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191];
+  const LIP_LEN = (LIP_OUTER.length + LIP_INNER.length) * 2;
+  const MAX_VIDEO_BYTES = 30 * 1024 * 1024; // Apps Script 單次請求上限約 50 MB（base64 會變大 1/3）
+  const UPLOAD_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,200}\/exec$/;
 
-  const LR = (window.LR = { FPS, MAX_SECONDS, MAX_LABEL, MAX_SPEAKER, DIM, events: new EventTarget() });
+  const LR = (window.LR = { FPS, MAX_SECONDS, MAX_LABEL, MAX_SPEAKER, DIM, MAX_VIDEO_BYTES, events: new EventTarget() });
 
   // ───────────────────────── 小工具 ─────────────────────────
   LR.el = function (tag, props, ...kids) {
@@ -55,12 +61,32 @@
     return new Date(t).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
   };
   LR.cleanText = (s, max) => String(s ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
-  LR.isVideoFile = (f) => !!f && (/^video\//.test(f.type) || /\.(mp4|m4v|mov|webm|mkv|avi)$/i.test(f.name));
+  LR.isVideoFile = (f) => !!f && (/^video\//.test(f.type) || /\.(mp4|m4v|mov|qt|webm|mkv|avi|3gp)$/i.test(f.name));
+  LR.isTouch = () => window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  LR.reducedMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  LR.fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB");
+  // CSV：加 BOM 讓 Excel 正確顯示中文；開頭是 = + - @ 的儲存格加 ' 防止公式注入
+  LR.toCsv = (rows) => "﻿" + rows.map((r) => r.map((v) => {
+    let s = v == null ? "" : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(",")).join("\r\n");
+  LR.downloadText = (name, text, type) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: type || "text/plain;charset=utf-8" }));
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  };
   // 檔名：念的內容_錄製者_編號.mp4
+  // 手機／相機自動取的檔名（IMG_0001.MOV、VID_2026…、PXL_…）不是標註，不要拿來當內容
+  const CAMERA_NAME_RE = /^(img|vid|mov|mvi|pxl|dsc|dscn|dcim|gopr|gh\d+|screen|rpreplay|capturedvideo|trim|video|錄影)[-_. ]?\d/i;
   LR.parseVideoName = (name) => {
     const base = String(name).replace(/\.[^.]+$/, "");
     const parts = base.split("_");
-    if (parts.length < 2) return { label: "", speaker: "" };
+    if (parts.length < 2 || CAMERA_NAME_RE.test(base) || /^\d+$/.test(parts[0])) return { label: "", speaker: "" };
     return { label: LR.cleanText(parts[0], MAX_LABEL), speaker: LR.cleanText(parts[1], MAX_SPEAKER) };
   };
   LR.download = (name, text) => {
@@ -152,7 +178,7 @@
       const onOk = () => { cleanup(); resolve(); };
       const onErr = () => {
         cleanup();
-        reject(new Error("瀏覽器無法解碼這個影片（iPhone 的 HEVC / MOV 請先轉成 H.264 MP4）"));
+        reject(new Error("這台電腦的瀏覽器解不開這個影片格式（常見於 iPhone 的 HEVC）。請直接用手機開網頁處理，或把 iPhone 相機格式改成「最相容」"));
       };
       const cleanup = () => { clearTimeout(t); el.removeEventListener(ok, onOk); el.removeEventListener("error", onErr); };
       el.addEventListener(ok, onOk);
@@ -172,6 +198,25 @@
     const innerH = d(13, 14) / eye, outerH = d(0, 17) / eye;
     f.push(outerW, innerH, outerH, innerH / (innerW + 1e-6));
     return f;
+  }
+
+  // 嘴唇輪廓座標：以嘴角中點為原點、兩眼距離為單位，並轉正頭部傾斜
+  function lipShape(res, W, H) {
+    const lm = res.faceLandmarks[0];
+    const P = (i) => [lm[i].x * W, lm[i].y * H];
+    const [ax, ay] = P(33), [bx, by] = P(263);
+    const eye = Math.hypot(bx - ax, by - ay) || 1e-6;
+    const ang = Math.atan2(by - ay, bx - ax);
+    const [lx, ly] = P(61), [rx, ry] = P(291);
+    const cx = (lx + rx) / 2, cy = (ly + ry) / 2;
+    const cos = Math.cos(-ang), sin = Math.sin(-ang);
+    const out = [];
+    for (const i of LIP_OUTER.concat(LIP_INNER)) {
+      const [x, y] = P(i);
+      const dx = (x - cx) / eye, dy = (y - cy) / eye;
+      out.push(Math.round((dx * cos - dy * sin) * 1000) / 1000, Math.round((dx * sin + dy * cos) * 1000) / 1000);
+    }
+    return out;
   }
 
   let lipIdx = null;
@@ -209,16 +254,27 @@
     return out.map((f) => f.map((v) => Math.round(v * 1e4) / 1e4));
   }
 
-  /** 讀一段影片，逐格抓嘴唇節點，回傳 { frames, quality }。 */
+  /** 讀一段影片，逐格抓嘴唇節點，回傳 { frames, lips, quality }。 */
   LR.extract = async function (file, { video, canvas, onProgress, shouldStop } = {}) {
     await LR.loadModel();
-    video = video || Object.assign(document.createElement("video"), { muted: true, playsInline: true });
+    video = video || document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.preload = "auto";
     const ctx = canvas ? canvas.getContext("2d") : null;
     const drawer = ctx ? new mp.DrawingUtils(ctx) : null;
     const url = URL.createObjectURL(file);
     try {
+      const loaded = waitEvent(video, "loadeddata", 15000);
       video.src = url;
-      await waitEvent(video, "loadeddata");
+      video.load();
+      // iPhone Safari 要先 play 一下才會真的載入影格（靜音行內播放不需要使用者手勢）
+      const p = video.play();
+      if (p && p.then) p.then(() => video.pause()).catch(() => {});
+      if (video.readyState < 2) await loaded; else loaded.catch(() => {});
+      video.pause();
       const W = video.videoWidth, H = video.videoHeight;
       if (!W || !H) throw new Error("讀不到影像尺寸");
       if (video.duration === Infinity) {
@@ -232,7 +288,7 @@
       if (canvas) { canvas.width = W; canvas.height = H; }
 
       const n = Math.max(1, Math.floor(dur * FPS));
-      const raw = [];
+      const raw = [], lips = [];
       let miss = 0;
       for (let i = 0; i < n; i++) {
         if (shouldStop && shouldStop()) throw new Error("已停止");
@@ -241,14 +297,14 @@
         const res = landmarker.detect(video);
         if (drawer) drawLips(ctx, drawer, res);
         const f = frameFeature(res, W, H);
-        if (f) raw.push(f); else miss++;
+        if (f) { raw.push(f); lips.push(lipShape(res, W, H)); } else miss++;
         if (onProgress) onProgress({ i: i + 1, n, found: raw.length, dur });
       }
       const quality = { frames: n, missed: miss, duration: Math.round(dur * 100) / 100, width: W, height: H };
       if (raw.length < 5 || miss > n * 0.5) {
         throw new Error(`有 ${miss}/${n} 格抓不到臉：請正面拍、光線充足、臉不要出鏡`);
       }
-      return { frames: preprocess(raw), quality };
+      return { frames: preprocess(raw), lips, quality };
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -377,15 +433,23 @@
     for (const r of f) if (!Array.isArray(r) || r.length !== DIM || !r.every(Number.isFinite)) return null;
     const v = o.video && typeof o.video === "object" ? o.video : {};
     const q = o.quality && typeof o.quality === "object" ? o.quality : {};
+    let lips = null;
+    if (Array.isArray(o.lips) && o.lips.length >= 3 && o.lips.length <= MAX_FRAMES &&
+        o.lips.every((r) => Array.isArray(r) && r.length === LIP_LEN && r.every(Number.isFinite))) lips = o.lips;
+    const driveId = typeof v.driveId === "string" && /^[A-Za-z0-9_-]{10,100}$/.test(v.driveId) ? v.driveId : "";
     return {
       schema: 1,
       id: o.id,
       label,
       speaker: LR.cleanText(o.speaker, MAX_SPEAKER),
-      video: { name: LR.cleanText(v.name, 200), path: LR.cleanText(v.path, 400), source: LR.cleanText(v.source, 40) },
+      video: {
+        name: LR.cleanText(v.name, 200), path: LR.cleanText(v.path, 400), source: LR.cleanText(v.source, 40),
+        driveId, folder: LR.cleanText(v.folder, 100),
+      },
       fps: FPS,
       dims: DIM,
       frames: f,
+      lips,
       quality: { frames: num(q.frames), missed: num(q.missed), duration: num(q.duration) },
       createdAt: typeof o.createdAt === "string" && Number.isFinite(Date.parse(o.createdAt)) ? o.createdAt : "",
       createdBy: LR.cleanText(o.createdBy, 60),
@@ -398,16 +462,19 @@
     return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${rnd}`;
   };
 
-  LR.newSample = function ({ label, speaker, frames, quality, file, author }) {
+  LR.newSample = function ({ label, speaker, frames, lips, quality, file, author, drive }) {
     return {
       schema: 1,
       id: LR.newId(),
       label,
       speaker,
-      video: { name: file.name, path: file.webkitRelativePath || file.name, source: "google-drive" },
+      video: drive
+        ? { name: drive.name || file.name, path: file.name, source: "google-drive", driveId: drive.id, folder: drive.folder || "" }
+        : { name: file.name, path: file.webkitRelativePath || file.name, source: file.webkitRelativePath ? "google-drive-sync" : "local" },
       fps: FPS,
       dims: DIM,
       frames,
+      lips: lips && lips.length ? lips : null,
       quality: { frames: quality.frames, missed: quality.missed, duration: quality.duration },
       createdAt: new Date().toISOString(),
       createdBy: author || "",
@@ -470,12 +537,13 @@
         repo: s.repo || CFG.repo,
         branch: s.branch || CFG.branch || "main",
         login: s.login || "",
+        uploadUrl: s.uploadUrl != null ? s.uploadUrl : (CFG.uploadUrl || ""),
       };
     },
     token() { return store.get("sessionStorage", TKEY) || store.get("localStorage", TKEY) || ""; },
     remembered() { return !!store.get("localStorage", TKEY); },
     save(s, token, remember) {
-      store.set("localStorage", SKEY, JSON.stringify({ owner: s.owner, repo: s.repo, branch: s.branch, login: s.login || "" }));
+      store.set("localStorage", SKEY, JSON.stringify({ owner: s.owner, repo: s.repo, branch: s.branch, login: s.login || "", uploadUrl: s.uploadUrl || "" }));
       store.del("sessionStorage", TKEY);
       store.del("localStorage", TKEY);
       if (token) store.set(remember ? "localStorage" : "sessionStorage", TKEY, token);
@@ -485,6 +553,144 @@
       store.del("localStorage", TKEY);
     },
     valid(s) { return NAME_RE.test(s.owner || "") && NAME_RE.test(s.repo || "") && BRANCH_RE.test(s.branch || ""); },
+    validUploadUrl(u) { return !u || UPLOAD_URL_RE.test(u); },
+  };
+
+  // ───────────────────────── Google 雲端上傳（經 Apps Script 中繼） ─────────────────────────
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1] || "");
+      r.onerror = () => reject(new Error("讀取影片檔失敗"));
+      r.readAsDataURL(file);
+    });
+  }
+  LR.drive = {
+    url() { const u = LR.settings.get().uploadUrl; return UPLOAD_URL_RE.test(u || "") ? u : ""; },
+    enabled() { return !!this.url() && LR.gh.connected(); },
+    async call(payload) {
+      const url = this.url();
+      if (!url) throw new Error("尚未設定影片上傳網址");
+      let res;
+      try {
+        // 不加自訂 header（text/plain），避免 CORS 預檢；host 固定為 script.google.com
+        res = await fetch(url, { method: "POST", body: JSON.stringify(Object.assign({ token: LR.settings.token() }, payload)), redirect: "follow" });
+      } catch {
+        throw new Error("連不到 Google 上傳服務，請檢查網路");
+      }
+      let j;
+      try { j = await res.json(); } catch { throw new Error("上傳服務回應格式錯誤（確認 Apps Script 有部署成「網頁應用程式」、存取權為「所有人」）"); }
+      if (!j || !j.ok) throw new Error("雲端上傳失敗：" + LR.cleanText(j && j.error, 200));
+      return j;
+    },
+    async ping() { return this.call({ action: "ping" }); },
+    async upload(file, label, speaker) {
+      if (file.size > MAX_VIDEO_BYTES) throw new Error(`影片太大（${LR.fmtSize(file.size)}），上限 ${LR.fmtSize(MAX_VIDEO_BYTES)}；請錄短一點或降低畫質`);
+      const ext = ((file.name.match(/\.([A-Za-z0-9]{2,4})$/) || [])[1] || "mp4").toLowerCase();
+      const data = await fileToBase64(file);
+      const j = await this.call({ action: "upload", label, speaker, mimeType: file.type || "video/mp4", ext, data });
+      if (!/^[A-Za-z0-9_-]{10,100}$/.test(j.id || "")) throw new Error("雲端回傳的檔案編號不正確");
+      return { id: j.id, name: LR.cleanText(j.name, 200), folder: LR.cleanText(j.folder, 100) };
+    },
+    async trash(id) {
+      if (!/^[A-Za-z0-9_-]{10,100}$/.test(id || "")) return;
+      await this.call({ action: "trash", id });
+    },
+    viewUrl: (id) => `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`,
+    previewUrl: (id) => `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`,
+  };
+
+  // ───────────────────────── 嘴型重播動畫 ─────────────────────────
+  const NPT = LIP_OUTER.length;
+  LR.LipPlayer = class {
+    constructor(canvas) {
+      this.c = canvas;
+      this.ctx = canvas.getContext("2d");
+      this.frames = null;
+      this.i = 0;
+      this.speed = 1;
+      this.playing = false;
+      this.onTick = null;
+      this._raf = 0;
+      this._acc = 0;
+      this._last = 0;
+      this.message = "";
+      new ResizeObserver(() => this.draw()).observe(canvas);
+    }
+    load(lips, message) {
+      this.pause();
+      this.frames = lips && lips.length ? lips : null;
+      this.message = message || "這段是舊資料，沒有存嘴型座標";
+      this.i = 0;
+      this.draw();
+    }
+    play() {
+      if (!this.frames || this.playing) return;
+      this.playing = true;
+      this._last = performance.now();
+      this._acc = 0;
+      const tick = (now) => {
+        if (!this.playing) return;
+        this._acc += (now - this._last) * this.speed;
+        this._last = now;
+        const step = 1000 / FPS;
+        while (this._acc >= step) { this._acc -= step; this.i = (this.i + 1) % this.frames.length; }
+        this.draw();
+        this._raf = requestAnimationFrame(tick);
+      };
+      this._raf = requestAnimationFrame(tick);
+    }
+    pause() { this.playing = false; cancelAnimationFrame(this._raf); }
+    toggle() { this.playing ? this.pause() : this.play(); }
+    restart() { this.i = 0; this._acc = 0; this.draw(); }
+    draw() {
+      const c = this.c, ctx = this.ctx, dpr = window.devicePixelRatio || 1;
+      const w = c.clientWidth, h = c.clientHeight;
+      if (!w || !h) return;
+      if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const css = getComputedStyle(c);
+      const v = (name, fb) => (css.getPropertyValue(name).trim() || fb);
+      if (!this.frames) {
+        ctx.fillStyle = v("--muted", "#898781");
+        ctx.font = "13px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(this.message, w / 2, h / 2);
+        if (this.onTick) this.onTick(0, 0);
+        return;
+      }
+      const s = Math.min(w / 0.95, h / 0.8);
+      const ox = w / 2, oy = h / 2;
+      const path = (f, start) => {
+        ctx.beginPath();
+        for (let k = 0; k < NPT; k++) {
+          const x = ox + f[(start + k) * 2] * s, y = oy + f[(start + k) * 2 + 1] * s;
+          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.closePath();
+      };
+      // 參考：第一格（閉嘴）的外輪廓，虛線
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = v("--line-strong", "#c3c2b7");
+      path(this.frames[0], 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const f = this.frames[this.i];
+      path(f, 0);
+      ctx.fillStyle = v("--lip-fill", "#f2a7b5");
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = v("--lip-stroke", "#c2405c");
+      ctx.stroke();
+      path(f, NPT);
+      ctx.fillStyle = v("--mouth", "#3a1d24");
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      if (this.onTick) this.onTick(this.i, this.frames.length);
+    }
   };
 
   const blobCache = new Map();
@@ -683,6 +889,11 @@
         LR.el("p", { class: "help", text: "建議用 Fine-grained token：只勾這個 repo，權限 Contents 設為 Read and write，設定到期日。已連線時留空表示沿用原本的 token。" })
       ),
       LR.el("label", { class: "check" }, remember, LR.el("span", { text: "在這台電腦記住 token（公用電腦請勿勾選）" })),
+      LR.el("div", { class: "field", style: "margin-top:16px" },
+        LR.el("label", { for: "setUpload", text: "影片上傳網址（Google Apps Script，選填）" }),
+        LR.el("input", { id: "setUpload", class: "input mono", autocomplete: "off", spellcheck: "false", placeholder: "https://script.google.com/macros/s/…/exec" }),
+        LR.el("p", { class: "help", text: "設定後，前台可以把影片直接存到 Google 雲端硬碟，並依念的內容自動分資料夾。" })
+      ),
       status,
       LR.el("div", { class: "dialog-actions" }, btnOff, LR.el("span", { class: "spacer" }), btnCancel, btnSave)
     );
@@ -694,6 +905,7 @@
       form.querySelector("#setRepo").value = s.repo;
       form.querySelector("#setBranch").value = s.branch;
       form.querySelector("#setToken").value = "";
+      form.querySelector("#setUpload").value = s.uploadUrl || "";
       remember.checked = LR.settings.remembered();
       btnOff.hidden = !LR.gh.connected();
       status.textContent = "";
@@ -713,9 +925,11 @@
         owner: form.querySelector("#setOwner").value.trim(),
         repo: form.querySelector("#setRepo").value.trim(),
         branch: form.querySelector("#setBranch").value.trim() || "main",
+        uploadUrl: form.querySelector("#setUpload").value.trim(),
       };
       const token = form.querySelector("#setToken").value.trim() || LR.settings.token();
       if (!LR.settings.valid(s)) { status.textContent = "帳號、repo 或分支名稱只能用英數字和 . _ -"; status.className = "dialog-status bad"; return; }
+      if (!LR.settings.validUploadUrl(s.uploadUrl)) { status.textContent = "上傳網址格式不對，應該是 https://script.google.com/macros/s/…/exec"; status.className = "dialog-status bad"; return; }
       if (!token) { status.textContent = "請貼上 token"; status.className = "dialog-status bad"; return; }
       btnSave.disabled = true;
       status.textContent = "連線測試中…";
@@ -726,6 +940,11 @@
         dlg.close();
         LR.events.dispatchEvent(new Event("connection"));
         LR.toast(`已連線 ${s.owner}/${s.repo}（${info.login}）${info.isPrivate ? "" : "。注意：這是公開 repo"}`, info.isPrivate ? "good" : "warn");
+        if (s.uploadUrl) {
+          LR.drive.ping()
+            .then(() => LR.toast("Google 雲端上傳服務連線成功", "good"))
+            .catch((err) => LR.toast(err.message, "warn", 8000));
+        }
       } catch (err) {
         status.textContent = err.message;
         status.className = "dialog-status bad";

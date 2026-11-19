@@ -2,7 +2,8 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a78d6">
 <title>分析報告｜無聲溝通</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
@@ -19,7 +20,20 @@
       <button class="btn" id="loadLocal">讀取本機資料夾</button>
       <input type="file" id="localInput" webkitdirectory multiple hidden>
       <button class="btn" id="reload">重新整理</button>
-      <button class="btn primary" id="copyReport" disabled>複製報告</button>
+      <details class="menu" id="exportMenu">
+        <summary class="btn primary" id="exportBtn" aria-disabled="true">匯出 ▾</summary>
+        <div class="menu-list" role="menu">
+          <button type="button" role="menuitem" data-export="samples">樣本清單（CSV）<small>每段的內容、錄製者、結果，Excel 可開</small></button>
+          <button type="button" role="menuitem" data-export="matrix">混淆矩陣（CSV）<small>目前選的評估方式</small></button>
+          <button type="button" role="menuitem" data-export="accuracy">各內容／錄製者準確率（CSV）</button>
+          <hr>
+          <button type="button" role="menuitem" data-export="md">報告（Markdown 檔）<small>可貼進 Word、Notion、HackMD</small></button>
+          <button type="button" role="menuitem" data-export="copy">複製報告到剪貼簿</button>
+          <button type="button" role="menuitem" data-export="print">列印／存成 PDF</button>
+          <hr>
+          <button type="button" role="menuitem" data-export="json">全部原始資料（JSON）<small>備份用，可用「讀取本機資料夾」載回</small></button>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -28,7 +42,7 @@
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6"/></svg>
     </div>
     <h2 id="emptyTitle">還沒有資料來源</h2>
-    <p id="emptyText">連線 GitHub 讀取大家上傳的樣本；或選擇從 repo clone 下來的 <code>data/samples</code> 資料夾。</p>
+    <p id="emptyText">連線 GitHub 讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。</p>
     <div class="actions">
       <button class="btn primary" id="emptyConnect">連線 GitHub</button>
       <button class="btn" id="emptyLocal">讀取本機資料夾</button>
@@ -43,7 +57,7 @@
   <div class="report-stack" id="report" hidden>
     <section class="kpis" id="kpis" aria-label="重點數字"></section>
 
-    <section class="card">
+    <section class="card reveal">
       <div class="card-h row">
         <div>
           <h2>辨識準確率</h2>
@@ -74,7 +88,27 @@
       <p class="note">比對方法：每格取 20 維嘴部特徵，扣掉開頭靜止嘴型後，用 DTW 找最接近的範本（1-NN）。特徵標準化係數用全部樣本計算。</p>
     </section>
 
-    <section class="card">
+    <section class="card reveal" id="lipSection">
+      <div class="card-h">
+        <h2>嘴型重播</h2>
+        <p>把抓到的嘴唇輪廓做成動畫，兩段並排比較。虛線是開頭閉嘴時的輪廓。按「最常搞混」旁的「比較嘴型」會自動帶入。</p>
+      </div>
+      <div class="players">
+        <div class="player" id="playerA"></div>
+        <div class="player" id="playerB"></div>
+      </div>
+      <div class="player-controls">
+        <button class="btn primary" id="lipPlay" type="button">▶ 同時播放</button>
+        <button class="btn" id="lipRestart" type="button">從頭開始</button>
+        <div class="seg" role="group" aria-label="播放速度" id="lipSpeed">
+          <button type="button" data-speed="0.25" aria-selected="false">0.25×</button>
+          <button type="button" data-speed="0.5" aria-selected="true">0.5×</button>
+          <button type="button" data-speed="1" aria-selected="false">1×</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card reveal">
       <div class="card-h">
         <h2>資料集概況</h2>
         <p>每種內容收集了幾段、由誰錄的。少於 5 段的格子標 ▲，建議補錄。</p>
@@ -91,11 +125,11 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card reveal">
       <div class="card-h row">
         <div>
           <h2>樣本清單</h2>
-          <p>「結果」欄是目前評估方式下這段的判斷。要播放影片，先連結 Google 雲端硬碟的影片資料夾。</p>
+          <p>「結果」欄是目前評估方式下這段的判斷。存在雲端的影片可直接播放；舊影片可按「連結影片資料夾」從電腦讀取。</p>
         </div>
         <div class="filters">
           <select class="input" id="fLabel" aria-label="篩選內容"></select>
@@ -112,7 +146,7 @@
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
-            <th>內容</th><th>錄製者</th><th>影片檔</th><th class="num">長度</th><th class="num">漏抓</th><th>上傳者</th><th>時間</th><th>結果</th><th></th>
+            <th>內容</th><th>錄製者</th><th>影片</th><th class="num">長度</th><th class="num">漏抓</th><th>上傳者</th><th>時間</th><th>結果</th><th></th>
           </tr></thead>
           <tbody id="sampleBody"></tbody>
         </table>
@@ -125,10 +159,19 @@
 <dialog class="dialog video-dlg" id="videoDlg" aria-labelledby="videoTitle">
   <div class="dialog-body">
     <div class="card-h row">
-      <h2 id="videoTitle">影片</h2>
+      <div>
+        <h2 id="videoTitle">影片</h2>
+        <p class="help" id="videoSub"></p>
+      </div>
       <button class="btn ghost sm" id="videoClose" type="button">關閉</button>
     </div>
-    <video id="videoPlayer" controls playsinline></video>
+    <div class="dlg-grid">
+      <div id="videoSlot"></div>
+      <div><canvas class="lipcanvas" id="dlgLip"></canvas></div>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <a class="btn sm" id="videoOpen" target="_blank" rel="noopener noreferrer" hidden>在 Google 雲端開啟</a>
+    </div>
   </div>
 </dialog>
 
@@ -142,38 +185,39 @@
   LR.mountHeader("report");
   LR.initTooltip();
 
-  const S = { samples: [], source: "", fromGitHub: false, D: null, results: { loo: [], cross: [] }, mode: "loo", videos: new Map(), labels: [], speakers: [], busy: false };
-  try { const m = LR.store.get("sessionStorage", "lr-mode"); if (m === "cross" || m === "loo") S.mode = m; } catch { /* 忽略 */ }
+  const S = {
+    samples: [], source: "", fromGitHub: false, D: null, results: { loo: [], cross: [] }, mode: "loo",
+    videos: new Map(), labels: [], speakers: [], busy: false, speed: 0.5,
+  };
+  const m0 = LR.store.get("sessionStorage", "lr-mode");
+  if (m0 === "cross" || m0 === "loo") S.mode = m0;
 
   const DESC = {
     loo: "每次拿出一段當測試，其他全部當範本（包含同一位錄製者的其他錄影）。對應「使用者先錄好自己的範本」的情境。",
     cross: "測試某位錄製者時，只用其他錄製者的範本。對應「新使用者沒錄範本就直接用」的情境，通常會明顯比較低。",
   };
   const NAME = { loo: "留一法", cross: "跨錄製者" };
+  const animate = () => !LR.reducedMotion();
 
   // ───────── 狀態切換 ─────────
   function show(which) {
     $("emptyState").hidden = which !== "empty";
     $("progressBox").hidden = which !== "progress";
     $("report").hidden = which !== "report";
-    $("copyReport").disabled = which !== "report";
+    $("exportBtn").setAttribute("aria-disabled", String(which !== "report"));
+    if (which !== "report") $("exportMenu").open = false;
   }
   function progress(frac, label) {
     show("progress");
     $("progBar").style.width = (Math.max(0, Math.min(1, frac)) * 100).toFixed(1) + "%";
     $("progLabel").textContent = label;
   }
-  function empty(title, text) {
-    $("emptyTitle").textContent = title;
-    $("emptyText").textContent = text;
-    show("empty");
-  }
+  function empty(title, text) { $("emptyTitle").textContent = title; $("emptyText").textContent = text; show("empty"); }
 
   // ───────── 讀資料 ─────────
   async function loadFromGitHub() {
     if (!LR.gh.connected()) {
-      empty("還沒有資料來源", "連線 GitHub 讀取大家上傳的樣本；或選擇從 repo clone 下來的 data/samples 資料夾。");
-      $("sourceLine").textContent = "讀取資料庫裡全部樣本，計算辨識準確率與容易搞混的內容。";
+      empty("還沒有資料來源", "連線 GitHub 讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。");
       return;
     }
     if (S.busy) return;
@@ -190,9 +234,7 @@
     } catch (e) {
       toast(e.message, "bad", 8000);
       empty("讀取失敗", e.message);
-    } finally {
-      S.busy = false;
-    }
+    } finally { S.busy = false; }
   }
 
   async function loadLocal(files) {
@@ -209,9 +251,7 @@
     } catch (e) {
       toast(e.message, "bad");
       empty("讀取失敗", e.message);
-    } finally {
-      S.busy = false;
-    }
+    } finally { S.busy = false; }
   }
 
   async function analyze(start) {
@@ -225,8 +265,34 @@
     S.D = await LR.distanceMatrix(S.samples, w, (f) => progress(start + (1 - start) * f, `計算口型相似度 ${Math.round(f * 100)}%`));
     S.results.loo = LR.evaluate(S.samples, S.D, "loo");
     S.results.cross = LR.evaluate(S.samples, S.D, "cross");
-    renderAll();
     show("report");
+    renderAll();
+  }
+
+  // ───────── 動畫小工具 ─────────
+  function countUp(node, to, fmt, delay) {
+    if (!Number.isFinite(to) || !animate()) { node.textContent = fmt(to); return; }
+    const dur = 1000, t0 = performance.now() + (delay || 0);
+    node.textContent = fmt(0);
+    const step = (now) => {
+      const t = Math.min(1, Math.max(0, (now - t0) / dur));
+      const e = 1 - Math.pow(1 - t, 3);
+      node.textContent = fmt(to * e);
+      if (t < 1) requestAnimationFrame(step); else node.textContent = fmt(to);
+    };
+    requestAnimationFrame(step);
+  }
+  function growBars(container) {
+    const fills = [...container.querySelectorAll(".fill[data-w]")];
+    if (!animate()) { fills.forEach((f) => (f.style.width = f.dataset.w)); return; }
+    fills.forEach((f, i) => { f.classList.add("grow"); f.style.transitionDelay = `${Math.min(i * 45, 600)}ms`; f.style.width = "0"; });
+    requestAnimationFrame(() => requestAnimationFrame(() => fills.forEach((f) => (f.style.width = f.dataset.w))));
+  }
+  const io = "IntersectionObserver" in window
+    ? new IntersectionObserver((ents) => ents.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: 0.08 })
+    : null;
+  function reveal() {
+    document.querySelectorAll(".reveal:not(.in)").forEach((n) => (io && animate() ? io.observe(n) : n.classList.add("in")));
   }
 
   // ───────── 繪製 ─────────
@@ -236,33 +302,44 @@
     renderDataset();
     renderFilters();
     renderSamples();
+    setupPlayers();
+    reveal();
   }
 
-  function kpi(label, value, sub, hero) {
-    return el("div", { class: "kpi" + (hero ? " hero" : "") },
-      el("div", { class: "kpi-label", text: label }),
-      el("div", { class: "kpi-value", text: value }),
-      el("div", { class: "kpi-sub", text: sub }));
-  }
   function renderKpis() {
     const loo = LR.summarize(S.results.loo, S.labels);
     const cross = LR.summarize(S.results.cross, S.labels);
     const chance = S.labels.length ? 1 / S.labels.length : NaN;
-    $("kpis").replaceChildren(
-      kpi("樣本", String(S.samples.length), "段影片"),
-      kpi("內容種類", String(S.labels.length), `隨機猜的準確率約 ${pct(chance)}`),
-      kpi("錄製者", String(S.speakers.length), S.speakers.length ? S.speakers.join("、") : "尚未填寫代號"),
-      kpi("留一法準確率", pct(loo.acc, 1), loo.n ? `${loo.hit} / ${loo.n} 段答對` : "每種內容至少要 2 段", true),
-      kpi("跨錄製者準確率", pct(cross.acc, 1), cross.n ? `${cross.hit} / ${cross.n} 段答對` : "需要 2 位以上錄製者念同一內容", true)
-    );
+    const int = (x) => String(Math.round(x));
+    const p1 = (x) => (Number.isFinite(x) ? (x * 100).toFixed(1) + "%" : "—");
+    const tiles = [
+      ["樣本", S.samples.length, int, "段影片"],
+      ["內容種類", S.labels.length, int, `隨機猜的準確率約 ${pct(chance)}`],
+      ["錄製者", S.speakers.length, int, S.speakers.length ? S.speakers.join("、") : "尚未填寫代號"],
+      ["留一法準確率", loo.acc, p1, loo.n ? `${loo.hit} / ${loo.n} 段答對` : "每種內容至少要 2 段", true],
+      ["跨錄製者準確率", cross.acc, p1, cross.n ? `${cross.hit} / ${cross.n} 段答對` : "需要 2 位以上錄製者念同一內容", true],
+    ];
+    $("kpis").replaceChildren(...tiles.map(([label, value, fmt, sub, hero], i) => {
+      const v = el("div", { class: "kpi-value" });
+      const node = el("div", { class: "kpi reveal" + (hero ? " hero" : ""), style: `transition-delay:${i * 70}ms` },
+        el("div", { class: "kpi-label", text: label }), v, el("div", { class: "kpi-sub", text: sub }));
+      countUp(v, value, fmt, i * 70);
+      return node;
+    }));
   }
 
   function hbar(name, frac, valText, tip) {
     return el("div", { class: "hbar" },
       el("span", { class: "name", title: name, text: name }),
       el("span", { class: "track", tabindex: "0", "data-tip": tip },
-        el("span", { class: "fill", style: `width:${(Math.max(0, frac) * 100).toFixed(1)}%` })),
+        el("span", { class: "fill", "data-w": `${(Math.max(0, frac) * 100).toFixed(1)}%`, style: `width:${(Math.max(0, frac) * 100).toFixed(1)}%` })),
       el("span", { class: "val", text: valText }));
+  }
+
+  function evalLabels(sum) {
+    const used = new Set();
+    S.results[S.mode].forEach((r) => { used.add(r.truth); used.add(r.pred); });
+    return S.labels.filter((l) => used.has(l));
   }
 
   function renderEval() {
@@ -281,13 +358,9 @@
     $("evalBody").hidden = false;
     $("evalEmpty").hidden = true;
 
-    // 只顯示有出現在評估中的內容
-    const used = new Set();
-    results.forEach((r) => { used.add(r.truth); used.add(r.pred); });
-    const labels = S.labels.filter((l) => used.has(l));
+    const labels = evalLabels(sum);
     const idx = labels.map((l) => S.labels.indexOf(l));
     const M = sum.matrix;
-
     const head = el("tr", null, el("th", { class: "corner", text: "實際 ＼ 判斷" }),
       ...labels.map((l) => el("th", { scope: "col", title: l, text: l })), el("th", { scope: "col", text: "準確率" }));
     const rows = idx.map((i, ri) => {
@@ -296,12 +369,15 @@
         const v = M[i][j];
         const share = rowN ? v / rowN : 0;
         const step = v ? Math.max(1, Math.ceil(share * 6)) : 0;
-        const tip = `實際「${labels[ri]}」→ 判成「${labels[cj]}」\n${v} 次（占該列 ${pct(share)}）`;
-        return el("td", { class: (step ? "s" + step : "") + (i === j ? " diag" : ""), tabindex: "0", "data-tip": tip, text: v ? String(v) : "·" });
+        const td = el("td", {
+          class: [step ? "s" + step : "", i === j ? "diag" : "", animate() ? "pop" : ""].filter(Boolean).join(" "),
+          tabindex: "0", "data-tip": `實際「${labels[ri]}」→ 判成「${labels[cj]}」\n${v} 次（占該列 ${pct(share)}）`, text: v ? String(v) : "·",
+        });
+        if (animate()) td.style.animationDelay = `${(ri + cj) * 35}ms`;
+        return td;
       });
-      const acc = rowN ? M[i][i] / rowN : NaN;
       return el("tr", null, el("th", { scope: "row", title: labels[ri], text: labels[ri] }), ...cells,
-        el("td", { class: "acc", text: rowN ? pct(acc) : "—" }));
+        el("td", { class: "acc", text: rowN ? pct(M[i][i] / rowN) : "—" }));
     });
     $("heat").replaceChildren(el("thead", null, head), el("tbody", null, rows));
     $("heatLegend").replaceChildren(
@@ -309,22 +385,26 @@
       el("span", { class: "ramp" }, ...[1, 2, 3, 4, 5, 6].map((k) => el("span", { style: `background:var(--seq-${k})` }))),
       el("span", { text: "高" }),
       el("span", { style: "margin-left:12px", class: "diag-key" }),
-      el("span", { text: "答對的格子" })
-    );
+      el("span", { text: "答對的格子" }));
 
     const perLabel = sum.perLabel.slice().sort((a, b) => a.hit / a.n - b.hit / b.n || b.n - a.n);
     $("labelAcc").replaceChildren(...perLabel.map((p) =>
       hbar(p.key, p.hit / p.n, `${pct(p.hit / p.n)}（${p.hit}/${p.n}）`, `${p.key}\n答對 ${p.hit} / ${p.n} 段（${pct(p.hit / p.n, 1)}）`)));
+    growBars($("labelAcc"));
 
     const conf = sum.confusions.slice(0, 6);
-    $("confusions").replaceChildren(...(conf.length ? conf.map((c) => el("li", null,
-      el("span", null, "「", el("strong", { text: c.truth }), "」被判成「", el("strong", { text: c.pred }), "」"),
-      el("span", { class: "cnt", text: `${c.count} 次・${pct(c.share)}` })
-    )) : [el("li", { text: "目前沒有判錯的樣本" })]));
+    $("confusions").replaceChildren(...(conf.length ? conf.map((c) => {
+      const b = el("button", { class: "btn ghost sm", type: "button", text: "比較嘴型" });
+      b.addEventListener("click", () => compare(c.truth, c.pred));
+      return el("li", null,
+        el("span", null, "「", el("strong", { text: c.truth }), "」被判成「", el("strong", { text: c.pred }), "」"),
+        el("span", { class: "cnt" }, `${c.count} 次・${pct(c.share)}`, b));
+    }) : [el("li", { text: "目前沒有判錯的樣本" })]));
 
     const perSpk = sum.perSpeaker.slice().sort((a, b) => a.key.localeCompare(b.key, "zh-Hant"));
     $("speakerAcc").replaceChildren(...perSpk.map((p) =>
       hbar(p.key, p.hit / p.n, `${pct(p.hit / p.n)}（${p.hit}/${p.n}）`, `錄製者 ${p.key}\n答對 ${p.hit} / ${p.n} 段（${pct(p.hit / p.n, 1)}）`)));
+    growBars($("speakerAcc"));
   }
 
   function renderDataset() {
@@ -342,6 +422,7 @@
       const tip = `${l}：共 ${n} 段\n` + [...byLabel.get(l).entries()].map(([k, v]) => `錄製者 ${k}：${v} 段`).join("\n");
       return hbar(l, n / max, `${n} 段${n < 5 ? " ▲" : ""}`, tip);
     }));
+    growBars($("countBars"));
 
     const spk = [...S.speakers];
     if (S.samples.some((s) => !s.speaker)) spk.push("（未填）");
@@ -368,73 +449,173 @@
     keep($("fSpeaker"), S.speakers, "全部錄製者");
   }
 
+  function resultMap() { return new Map(S.results[S.mode].map((r) => [r.sample.id, r])); }
+
   function renderSamples() {
-    const res = new Map(S.results[S.mode].map((r) => [r.sample.id, r]));
+    const res = resultMap();
     const fl = $("fLabel").value, fs = $("fSpeaker").value, fr = $("fResult").value;
     let list = S.samples.filter((s) => (!fl || s.label === fl) && (!fs || s.speaker === fs));
     if (fr) list = list.filter((s) => { const r = res.get(s.id); return r && (fr === "ok" ? r.correct : !r.correct); });
     list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
     const LIMIT = 300;
-    const shown = list.slice(0, LIMIT);
-    $("sampleBody").replaceChildren(...shown.map((s) => {
+    $("sampleBody").replaceChildren(...list.slice(0, LIMIT).map((s) => {
       const r = res.get(s.id);
       const result = !r ? el("span", { class: "res-none", text: "— 未評估" })
         : r.correct ? el("span", { class: "res-ok", text: "✓ 正確" })
         : el("span", { class: "res-bad", text: `✗ 判成「${r.pred}」` });
       const q = s.quality || {};
       const miss = q.frames ? q.missed / q.frames : NaN;
-      const file = S.videos.get(s.video.name);
-      const play = el("button", { class: "btn ghost sm", type: "button", disabled: !file, title: file ? "播放影片" : "先按「連結影片資料夾」", text: "播放" });
-      play.addEventListener("click", () => openVideo(s, file));
+      const where = s.video.driveId ? `☁ ${s.video.folder ? s.video.folder + "/" : ""}${s.video.name}` : (s.video.name || "—");
+      const view = el("button", { class: "btn ghost sm", type: "button", text: "檢視" });
+      view.addEventListener("click", () => openSample(s));
       const del = S.fromGitHub ? el("button", { class: "btn ghost sm danger", type: "button", text: "刪除" }) : null;
       if (del) del.addEventListener("click", () => removeSample(s));
       return el("tr", null,
         el("td", { text: s.label }),
         el("td", { text: s.speaker || "—" }),
-        el("td", { class: "file", title: s.video.path || s.video.name, text: s.video.name || "—" }),
+        el("td", { class: "file", title: s.video.path || s.video.name, text: where }),
         el("td", { class: "num", text: Number.isFinite(q.duration) ? q.duration.toFixed(1) + " 秒" : "—" }),
         el("td", { class: "num", text: Number.isFinite(miss) ? pct(miss) : "—" }),
         el("td", { text: s.createdBy || "—" }),
         el("td", { text: LR.fmtDate(s.createdAt) }),
         el("td", null, result),
-        el("td", { style: "white-space:nowrap" }, play, del));
+        el("td", { style: "white-space:nowrap" }, view, del));
     }));
     $("sampleNote").textContent = list.length > LIMIT ? `共 ${list.length} 段，只顯示最新的 ${LIMIT} 段，請用上方篩選。` : `共 ${list.length} 段`;
   }
 
-  function openVideo(s, file) {
-    if (!file) return;
-    const p = $("videoPlayer");
-    if (p.dataset.url) URL.revokeObjectURL(p.dataset.url);
-    p.dataset.url = URL.createObjectURL(file);
-    p.src = p.dataset.url;
+  // ───────── 嘴型重播 ─────────
+  const players = {};
+  function buildPlayer(key, title) {
+    const box = $("player" + key);
+    const selL = el("select", { class: "input", "aria-label": `${title}：內容` });
+    const selS = el("select", { class: "input", "aria-label": `${title}：哪一段` });
+    const canvas = el("canvas", { class: "lipcanvas", role: "img", "aria-label": `${title}嘴型動畫` });
+    const bar = el("span");
+    const counter = el("span", { text: "—" });
+    const name = el("div", { class: "player-title", text: title });
+    box.replaceChildren(name, el("div", { class: "player-h" }, selL, selS), canvas,
+      el("div", { class: "player-foot" }, el("div", { class: "player-progress" }, bar), counter));
+    const p = new LR.LipPlayer(canvas);
+    p.speed = S.speed;
+    p.onTick = (i, n) => { bar.style.width = n ? `${(i / Math.max(1, n - 1)) * 100}%` : "0"; counter.textContent = n ? `${i + 1} / ${n} 格` : "—"; };
+    const fillSamples = (keepId) => {
+      const list = S.samples.filter((s) => s.label === selL.value);
+      selS.replaceChildren(...list.map((s, i) => el("option", { value: s.id, text: `${s.speaker || "—"}・第 ${i + 1} 段${s.lips ? "" : "（無嘴型）"}` })));
+      const withLips = list.find((s) => s.lips);
+      selS.value = keepId && list.some((s) => s.id === keepId) ? keepId : (withLips || list[0] || {}).id || "";
+      loadSel();
+    };
+    const loadSel = () => {
+      const s = S.samples.find((x) => x.id === selS.value);
+      const was = p.playing;
+      p.load(s && s.lips, s ? "這段是舊資料，沒有存嘴型座標" : "沒有樣本");
+      name.textContent = s ? `${title}：${s.label}` : title;
+      if (was) p.play();
+    };
+    selL.addEventListener("change", () => fillSamples());
+    selS.addEventListener("change", loadSel);
+    players[key] = { p, selL, selS, fillSamples, setLabel(l) { selL.value = l; fillSamples(); } };
+  }
+
+  function setupPlayers() {
+    if (!players.A) { buildPlayer("A", "左"); buildPlayer("B", "右"); }
+    const withLips = new Set(S.samples.filter((s) => s.lips).map((s) => s.label));
+    for (const k of ["A", "B"]) {
+      const cur = players[k].selL.value;
+      players[k].selL.replaceChildren(...S.labels.map((l) => el("option", { value: l, text: withLips.has(l) ? l : `${l}（無嘴型）` })));
+      if (S.labels.includes(cur)) players[k].selL.value = cur;
+    }
+    // 預設：最常搞混的那一組
+    const top = LR.summarize(S.results[S.mode], S.labels).confusions[0];
+    const a = top ? top.truth : S.labels[0], b = top ? top.pred : (S.labels[1] || S.labels[0]);
+    if (!players.A.selS.value || !S.labels.includes(players.A.selL.value)) players.A.setLabel(a); else players.A.fillSamples(players.A.selS.value);
+    if (!players.B.selS.value || !S.labels.includes(players.B.selL.value)) players.B.setLabel(b); else players.B.fillSamples(players.B.selS.value);
+  }
+
+  function compare(a, b) {
+    players.A.setLabel(a);
+    players.B.setLabel(b);
+    $("lipSection").scrollIntoView({ behavior: animate() ? "smooth" : "auto", block: "start" });
+    playBoth(true);
+  }
+  function playBoth(force) {
+    const any = players.A.p.playing || players.B.p.playing;
+    if (any && !force) { players.A.p.pause(); players.B.p.pause(); $("lipPlay").textContent = "▶ 同時播放"; return; }
+    players.A.p.restart(); players.B.p.restart();
+    players.A.p.play(); players.B.p.play();
+    $("lipPlay").textContent = "❚❚ 暫停";
+  }
+  $("lipPlay").addEventListener("click", () => playBoth(false));
+  $("lipRestart").addEventListener("click", () => { players.A && players.A.p.restart(); players.B && players.B.p.restart(); });
+  $("lipSpeed").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-speed]");
+    if (!b) return;
+    S.speed = Number(b.dataset.speed);
+    for (const x of $("lipSpeed").querySelectorAll("button")) x.setAttribute("aria-selected", String(x === b));
+    for (const k of ["A", "B"]) if (players[k]) players[k].p.speed = S.speed;
+    if (dlgPlayer) dlgPlayer.speed = S.speed;
+  });
+
+  // ───────── 單段檢視（影片＋嘴型） ─────────
+  let dlgPlayer = null;
+  function openSample(s) {
+    if (!dlgPlayer) dlgPlayer = new LR.LipPlayer($("dlgLip"));
+    dlgPlayer.speed = S.speed;
+    const r = resultMap().get(s.id);
     $("videoTitle").textContent = `${s.label}・錄製者 ${s.speaker || "—"}`;
+    $("videoSub").textContent = r ? (r.correct ? "✓ 這段在目前評估方式下判斷正確" : `✗ 這段被判成「${r.pred}」`) : "這段沒有被評估";
+    const slot = $("videoSlot");
+    const local = S.videos.get(s.video.name);
+    if (s.video.driveId) {
+      slot.replaceChildren(el("iframe", { src: LR.drive.previewUrl(s.video.driveId), allow: "autoplay; fullscreen", title: "雲端影片", loading: "lazy" }));
+      $("videoOpen").href = LR.drive.viewUrl(s.video.driveId);
+      $("videoOpen").hidden = false;
+    } else if (local) {
+      const v = el("video", { controls: true, playsinline: true, autoplay: true, muted: true });
+      v.src = URL.createObjectURL(local);
+      v.addEventListener("emptied", () => URL.revokeObjectURL(v.src), { once: true });
+      slot.replaceChildren(v);
+      $("videoOpen").hidden = true;
+    } else {
+      slot.replaceChildren(el("div", { class: "dlg-empty", text: "這段影片不在雲端。要看影片，請按「連結影片資料夾」選擇電腦上的影片資料夾。" }));
+      $("videoOpen").hidden = true;
+    }
     $("videoDlg").showModal();
-    p.play().catch(() => {});
+    dlgPlayer.load(s.lips);
+    dlgPlayer.play();
   }
   $("videoClose").addEventListener("click", () => $("videoDlg").close());
-  $("videoDlg").addEventListener("close", () => $("videoPlayer").pause());
+  $("videoDlg").addEventListener("close", () => {
+    if (dlgPlayer) dlgPlayer.pause();
+    const v = $("videoSlot").querySelector("video");
+    if (v) { v.pause(); v.removeAttribute("src"); v.load(); }
+    $("videoSlot").replaceChildren();
+  });
 
   async function removeSample(s) {
-    if (!confirm(`確定要從 GitHub 刪除這段樣本？\n\n內容：${s.label}\n錄製者：${s.speaker || "—"}\n影片：${s.video.name || "—"}\n\n會產生一個刪除 commit，需要時可從 git 歷史還原。Google 雲端上的影片不受影響。`)) return;
+    const drive = s.video.driveId && LR.drive.url();
+    if (!confirm(`確定要刪除這段樣本？\n\n內容：${s.label}\n錄製者：${s.speaker || "—"}\n影片：${s.video.name || "—"}\n\n口型數據會從 GitHub 刪除（會留下刪除 commit，可從 git 歷史還原）。${drive ? "\n雲端影片會移到垃圾桶，30 天內可還原。" : ""}`)) return;
     try {
       await LR.gh.deleteSample(s);
+      if (drive) {
+        try { await LR.drive.trash(s.video.driveId); }
+        catch (e) { toast("口型數據已刪除，但雲端影片沒刪成功：" + e.message, "warn", 8000); }
+      }
       S.samples = S.samples.filter((x) => x.id !== s.id);
       toast(`已刪除「${s.label}」這段樣本`, "good");
       await analyze(0);
-    } catch (e) {
-      toast(e.message, "bad");
-    }
+    } catch (e) { toast(e.message, "bad"); }
   }
 
-  // ───────── 複製報告（Markdown） ─────────
+  // ───────── 匯出 ─────────
+  const stamp = () => new Date().toISOString().slice(0, 10);
   function mdTable(head, rows) {
     const esc = (v) => String(v).replace(/\|/g, "\\|");
     return [`| ${head.map(esc).join(" | ")} |`, `| ${head.map(() => "---").join(" | ")} |`, ...rows.map((r) => `| ${r.map(esc).join(" | ")} |`)].join("\n");
   }
   function buildReport() {
-    const today = new Date().toLocaleDateString("zh-TW");
-    const out = [`# 唇語辨識分析報告（${today}）`, "", `資料來源：${S.source}`, "",
+    const out = [`# 唇語辨識分析報告（${new Date().toLocaleDateString("zh-TW")}）`, "", `資料來源：${S.source}`, "",
       `- 樣本：${S.samples.length} 段、${S.labels.length} 種內容、${S.speakers.length} 位錄製者`];
     for (const mode of ["loo", "cross"]) {
       const sum = LR.summarize(S.results[mode], S.labels);
@@ -450,17 +631,65 @@
         mdTable(["實際＼判斷", ...used], ix.map((i, r) => [used[r], ...ix.map((j) => sum.matrix[i][j])])),
         "", "### 各內容準確率", "",
         mdTable(["內容", "答對", "樣本", "準確率"], sum.perLabel.map((p) => [p.key, p.hit, p.n, pct(p.hit / p.n, 1)])));
-      if (sum.confusions.length) {
-        out.push("", "### 最常搞混", "", ...sum.confusions.slice(0, 5).map((c) => `- 「${c.truth}」被判成「${c.pred}」：${c.count} 次（${pct(c.share)}）`));
-      }
+      if (sum.confusions.length) out.push("", "### 最常搞混", "", ...sum.confusions.slice(0, 5).map((c) => `- 「${c.truth}」被判成「${c.pred}」：${c.count} 次（${pct(c.share)}）`));
     }
     out.push("", "> 方法：MediaPipe Face Landmarker 取每格 20 維嘴部特徵，扣除開頭靜止嘴型後以 DTW 最近鄰比對。");
     return out.join("\n");
   }
-  $("copyReport").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(buildReport()); toast("報告已複製（Markdown 格式），可直接貼進文件", "good"); }
-    catch { toast("瀏覽器不允許複製到剪貼簿", "bad"); }
+
+  const EXPORTS = {
+    samples() {
+      const lr = new Map(S.results.loo.map((r) => [r.sample.id, r]));
+      const cr = new Map(S.results.cross.map((r) => [r.sample.id, r]));
+      const res = (r) => (r ? (r.correct ? "正確" : "判成 " + r.pred) : "未評估");
+      const rows = [["編號", "內容", "錄製者", "影片檔名", "雲端資料夾", "雲端連結", "長度(秒)", "影格數", "漏抓影格", "上傳者", "上傳時間", "留一法結果", "跨錄製者結果"]];
+      for (const s of S.samples) {
+        const q = s.quality || {};
+        rows.push([s.id, s.label, s.speaker, s.video.name, s.video.folder, s.video.driveId ? LR.drive.viewUrl(s.video.driveId) : "",
+          q.duration ?? "", q.frames ?? "", q.missed ?? "", s.createdBy, s.createdAt, res(lr.get(s.id)), res(cr.get(s.id))]);
+      }
+      LR.downloadText(`唇語樣本清單-${stamp()}.csv`, LR.toCsv(rows), "text/csv;charset=utf-8");
+    },
+    matrix() {
+      const sum = LR.summarize(S.results[S.mode], S.labels);
+      if (!sum.n) { toast("目前的評估方式沒有結果可以匯出", "warn"); return; }
+      const rows = [[`${NAME[S.mode]}：實際＼判斷`, ...S.labels, "準確率"]];
+      S.labels.forEach((l, i) => {
+        const n = sum.matrix[i].reduce((a, b) => a + b, 0);
+        if (n) rows.push([l, ...sum.matrix[i], (sum.matrix[i][i] / n * 100).toFixed(1) + "%"]);
+      });
+      LR.downloadText(`混淆矩陣-${NAME[S.mode]}-${stamp()}.csv`, LR.toCsv(rows), "text/csv;charset=utf-8");
+    },
+    accuracy() {
+      const rows = [["評估方式", "類別", "名稱", "答對", "樣本", "準確率"]];
+      for (const mode of ["loo", "cross"]) {
+        const sum = LR.summarize(S.results[mode], S.labels);
+        if (!sum.n) continue;
+        rows.push([NAME[mode], "整體", "全部", sum.hit, sum.n, (sum.acc * 100).toFixed(1) + "%"]);
+        for (const p of sum.perLabel) rows.push([NAME[mode], "內容", p.key, p.hit, p.n, (p.hit / p.n * 100).toFixed(1) + "%"]);
+        for (const p of sum.perSpeaker) rows.push([NAME[mode], "錄製者", p.key, p.hit, p.n, (p.hit / p.n * 100).toFixed(1) + "%"]);
+      }
+      LR.downloadText(`準確率-${stamp()}.csv`, LR.toCsv(rows), "text/csv;charset=utf-8");
+    },
+    md() { LR.downloadText(`唇語分析報告-${stamp()}.md`, buildReport(), "text/markdown;charset=utf-8"); },
+    async copy() {
+      try { await navigator.clipboard.writeText(buildReport()); toast("報告已複製（Markdown 格式），可直接貼進文件", "good"); }
+      catch { toast("瀏覽器不允許複製到剪貼簿，請改用「報告（Markdown 檔）」", "bad"); }
+    },
+    print() { document.querySelectorAll(".reveal").forEach((n) => n.classList.add("in")); setTimeout(() => window.print(), 50); },
+    json() {
+      const clean = S.samples.map((s) => { const o = Object.assign({}, s); delete o._path; delete o._sha; return o; });
+      LR.downloadText(`唇語原始資料-${stamp()}.json`, JSON.stringify(clean), "application/json");
+    },
+  };
+  $("exportMenu").addEventListener("click", (e) => {
+    if (e.target.closest("summary") && $("exportBtn").getAttribute("aria-disabled") === "true") { e.preventDefault(); toast("要先載入資料才能匯出", "warn"); return; }
+    const b = e.target.closest("button[data-export]");
+    if (!b) return;
+    $("exportMenu").open = false;
+    EXPORTS[b.dataset.export]();
   });
+  document.addEventListener("click", (e) => { if (!e.target.closest("#exportMenu")) $("exportMenu").open = false; });
 
   // ───────── 事件 ─────────
   $("modeSeg").addEventListener("click", (e) => {
@@ -492,7 +721,6 @@
     S.videos = new Map(files.map((f) => [f.name, f]));
     const matched = S.samples.filter((s) => S.videos.has(s.video.name)).length;
     toast(`已連結 ${files.length} 支影片，對到 ${matched} 段樣本`, matched ? "good" : "warn");
-    renderSamples();
   });
   LR.events.addEventListener("connection", loadFromGitHub);
 
