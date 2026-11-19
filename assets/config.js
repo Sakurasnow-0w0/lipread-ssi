@@ -12,6 +12,7 @@ window.LR_CONFIG = {
   privacyVersion: "2026-11-19",
   // 資料保存到「專題總截止日」後幾年（總截止日在「日程」頁設定）
   retentionYears: 1,
-  // 隱私權頁面的聯絡信箱（會公開，請用學校信箱；留空則顯示「請聯絡專題負責人」）
-  contactEmail: "",
+  // 隱私權請求表單（Google 表單的分享連結，https://forms.gle/… 或 https://docs.google.com/forms/d/e/…/viewform）
+  // 不在這裡放信箱：這個檔案是公開的，信箱會被掃去寄垃圾信，而且會永遠留在 git 紀錄裡
+  contactFormUrl: "",
 };

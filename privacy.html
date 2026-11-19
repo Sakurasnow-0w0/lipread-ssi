@@ -129,6 +129,10 @@
     <section id="contact">
       <h2>8. 聯絡窗口</h2>
       <p id="contactText">有任何問題、想查看或刪除自己的資料，請聯絡提供你通關碼的專題負責人。</p>
+      <div class="contact-form" id="contactForm" hidden>
+        <p>也可以直接填寫隱私權請求表單（查看我的資料、刪除我的資料、撤回同意、其他問題），專題負責人收到後會處理並回覆你。</p>
+        <a class="btn primary" id="contactFormLink" target="_blank" rel="noopener noreferrer">填寫隱私權請求表單 ↗</a>
+      </div>
     </section>
   </article>
 
@@ -153,9 +157,9 @@
   $("retentionShort").textContent = `專題總截止日後 ${years} 年`;
   $("retentionText").replaceChildren("資料保存到", Object.assign(document.createElement("strong"), { textContent: `專題總截止日後 ${years} 年` }),
     "，期滿後由專題負責人刪除所有影片、口型數據與上傳紀錄（刪除整個 GitHub 資料 repo 與雲端硬碟影片資料夾，版本紀錄也一併消失）。");
-  if (P.contactEmail) {
-    const a = Object.assign(document.createElement("a"), { href: "mailto:" + P.contactEmail, textContent: P.contactEmail });
-    $("contactText").replaceChildren("有任何問題、想查看或刪除自己的資料，請寫信到 ", a, "，或聯絡提供你通關碼的專題負責人。");
+  if (P.contactFormUrl) {
+    $("contactFormLink").href = P.contactFormUrl;
+    $("contactForm").hidden = false;
   }
 
   async function showRetention() {

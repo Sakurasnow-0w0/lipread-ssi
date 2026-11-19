@@ -1084,7 +1084,8 @@
   LR.policy = {
     version: LR.cleanText(CFG.privacyVersion, 20) || "1",
     retentionYears: Math.max(0, Math.min(10, Number(CFG.retentionYears) || 1)),
-    contactEmail: /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/.test(CFG.contactEmail || "") ? CFG.contactEmail : "",
+    // 只接受 Google 表單網址（host 白名單），避免設定檔被改成奇怪的連結
+    contactFormUrl: /^https:\/\/(forms\.gle\/[A-Za-z0-9]{6,40}|docs\.google\.com\/forms\/d\/e\/[A-Za-z0-9_-]{20,120}\/viewform(\?usp=[A-Za-z_]{1,30})?)$/.test(CFG.contactFormUrl || "") ? CFG.contactFormUrl : "",
     accepted() {
       try {
         const c = JSON.parse(store.get("localStorage", CONSENT_KEY) || "null");
@@ -1122,7 +1123,9 @@
         E("li", null, E("strong", { text: "存放：" }), "口型數據在 GitHub 私有 repo、影片在專題負責人的雲端硬碟，只有專題成員看得到。"),
         E("li", null, E("strong", { text: "期限：" }), `保存到專題總截止日後 ${P.retentionYears} 年，期滿全部刪除。`),
         E("li", null, E("strong", { text: "權利：" }), "自願參與，可以隨時撤回同意、要求刪除自己的資料。未滿 18 歲需法定代理人同意。")),
-      E("p", null, E("a", { href: "privacy.html", target: "_blank", rel: "noopener", text: "閱讀完整的隱私權與使用規範 ↗" })),
+      E("p", { class: "consent-links" },
+        E("a", { href: "privacy.html", target: "_blank", rel: "noopener", text: "閱讀完整的隱私權與使用規範 ↗" }),
+        P.contactFormUrl ? E("a", { href: P.contactFormUrl, target: "_blank", rel: "noopener noreferrer", text: "隱私權請求表單 ↗" }) : null),
       E("label", { class: "check consent-check" }, c1, E("span", { text: "我已閱讀並同意隱私權政策與使用規範" })),
       E("label", { class: "check consent-check" }, c2, E("span", { text: "我只會錄自己，或已經取得影片中的人同意" })),
       E("div", { class: "dialog-actions" }, no, E("span", { class: "spacer" }), ok));

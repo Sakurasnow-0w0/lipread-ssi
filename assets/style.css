@@ -772,6 +772,8 @@ body.locked .site-foot { visibility: visible; }
 .retention-box strong { font-size: 17px; }
 .consent-status { margin-top: 20px; }
 .consent-status h2 { margin-bottom: 8px; }
+.contact-form { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--accent-soft); display: grid; gap: 10px; justify-items: start; }
+.consent-links { display: flex; gap: 16px; flex-wrap: wrap; }
 .consent-points { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; line-height: 1.65; color: var(--ink-2); }
 .consent-points strong { color: var(--ink); }
 .consent-check { align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); margin-top: 8px; color: var(--ink); }
