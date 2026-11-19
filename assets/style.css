@@ -398,6 +398,11 @@ select.input { padding: 7px 10px; font-size: 14px; width: auto; }
 .dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
 .dialog-status { font-size: 13px; color: var(--ink-2); margin-top: 12px; min-height: 1.2em; }
 .dialog-status.bad { color: var(--bad-ink); }
+/* Cloudflare Turnstile：平常看不到；需要勾選時才出現 */
+.ts-box { margin-top: 12px; display: flex; justify-content: center; }
+.ts-box[hidden] { display: none; }
+.ts-float { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 70; }
+.ts-float:not(:empty) { padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow); }
 .dialog.video-dlg { width: min(720px, calc(100vw - 32px)); }
 /* 未登入：隱藏頁面內容與導覽，只留登入視窗 */
 body.locked main, body.locked .nav, body.locked .conn,

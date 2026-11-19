@@ -655,9 +655,99 @@
       this.clear();
       store.set(remember ? "localStorage" : "sessionStorage", TEAM_KEY, JSON.stringify({ code, name }));
     },
-    clear() { store.del("localStorage", TEAM_KEY); store.del("sessionStorage", TEAM_KEY); store.del("sessionStorage", ADMIN_KEY); },
+    /** 清掉通關碼、管理員密碼與通行證（通行證會順便通知後端作廢） */
+    clear() {
+      const s = LR.session.get();
+      if (s) LR.drive.raw({ action: "logout", session: s.t }, {}).catch(() => {});
+      LR.session.clear();
+      store.del("localStorage", TEAM_KEY); store.del("sessionStorage", TEAM_KEY); store.del("sessionStorage", ADMIN_KEY);
+    },
     adminCode() { return store.get("sessionStorage", ADMIN_KEY) || ""; },
     setAdmin(code) { if (code) store.set("sessionStorage", ADMIN_KEY, code); else store.del("sessionStorage", ADMIN_KEY); },
+  };
+
+  // ── 後端發的「通行證」（開了 Turnstile 時使用）：登入一次，之後每個請求只帶通行證、不帶通關碼 ──
+  const SESSION_KEY = "lr-session";
+  const SESSION_RE = /^[0-9a-f]{64}$/;
+  LR.session = {
+    get() {
+      for (const area of ["sessionStorage", "localStorage"]) {
+        try {
+          const o = JSON.parse(store.get(area, SESSION_KEY) || "null");
+          if (o && SESSION_RE.test(o.t || "") && Number(o.exp) > Date.now()) return { t: o.t, role: o.role === "admin" ? "admin" : "team", exp: Number(o.exp) };
+        } catch { /* 忽略壞掉的資料 */ }
+      }
+      return null;
+    },
+    /** persist：記住通關碼時存 localStorage；管理員通行證一律只存在這個分頁 */
+    save(j, persist) {
+      this.clear();
+      if (!j || !SESSION_RE.test(j.session || "")) throw new Error("後端回傳的通行證格式不正確");
+      const ttl = Math.min(Math.max(Number(j.expiresIn) || 0, 0), 6 * 3600);
+      const rec = { t: j.session, role: j.role === "admin" ? "admin" : "team", exp: Date.now() + Math.max(ttl - 120, 0) * 1000 };
+      store.set(persist && rec.role !== "admin" ? "localStorage" : "sessionStorage", SESSION_KEY, JSON.stringify(rec));
+    },
+    clear() { store.del("localStorage", SESSION_KEY); store.del("sessionStorage", SESSION_KEY); },
+  };
+
+  // ── Cloudflare Turnstile 人機驗證（config.js 的 turnstileSiteKey 有填才啟用） ──
+  const TS_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  const TS_KEY_RE = /^[0-9]x[0-9A-Za-z_-]{10,80}$/;
+  let tsLoading = null;
+  function loadTurnstile() {
+    if (window.turnstile && window.turnstile.render) return Promise.resolve(window.turnstile);
+    if (!tsLoading) {
+      tsLoading = new Promise((resolve, reject) => {
+        // Cloudflare 規定直接載入官方網址（不能自行代管或固定版本），所以這裡無法加 SRI
+        const s = document.createElement("script");
+        s.src = TS_SRC;
+        s.async = true;
+        s.onload = () => (window.turnstile && window.turnstile.render ? resolve(window.turnstile) : reject(new Error("人機驗證載入失敗")));
+        s.onerror = () => reject(new Error("載入人機驗證失敗：請檢查網路，或暫時關閉擋廣告的外掛"));
+        document.head.append(s);
+      }).catch((err) => { tsLoading = null; throw err; });
+    }
+    return tsLoading;
+  }
+  LR.turnstile = {
+    enabled: () => TS_KEY_RE.test(CFG.turnstileSiteKey || ""),
+    /**
+     * 取得一次性的驗證碼。大多數人不會看到任何東西；Cloudflare 覺得可疑時才會在 host 裡出現勾選框。
+     * host 沒給時，放在目前開著的視窗（dialog）或畫面右下角。
+     */
+    async token(host) {
+      const ts = await loadTurnstile();
+      const own = !host;
+      const box = host || LR.el("div", { class: "ts-float", role: "region", "aria-label": "人機驗證" });
+      if (own) (document.querySelector("dialog[open]") || document.body).append(box);
+      box.hidden = false;
+      return new Promise((resolve, reject) => {
+        let id = null, finished = false;
+        const done = (fn, v) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          try { if (id != null) ts.remove(id); } catch { /* 已移除 */ }
+          if (own) box.remove(); else { box.replaceChildren(); box.hidden = true; }
+          fn(v);
+        };
+        const timer = setTimeout(() => done(reject, new Error("人機驗證逾時，請再試一次")), 120000);
+        try {
+          id = ts.render(box, {
+            sitekey: CFG.turnstileSiteKey,
+            action: "login",
+            appearance: "interaction-only",
+            language: "zh-tw",
+            callback: (t) => done(resolve, String(t || "")),
+            "error-callback": () => { done(reject, new Error("人機驗證失敗，請重新整理頁面再試")); return true; },
+            "expired-callback": () => done(reject, new Error("人機驗證過期，請再試一次")),
+            "timeout-callback": () => done(reject, new Error("人機驗證逾時，請再試一次")),
+          });
+        } catch (err) {
+          done(reject, new Error("人機驗證無法啟動：" + ((err && err.message) || err)));
+        }
+      });
+    },
   };
   /** "github"：用自己的 token；"team"：用通關碼；null：未連線 */
   LR.mode = () => {
@@ -677,13 +767,54 @@
       if (["deleteSample", "trash", "journalDelete", "scheduleOp"].includes(action) && LR.team.adminCode()) a.adminCode = LR.team.adminCode();
       return a;
     },
+    /** 一般呼叫：開了 Turnstile 的團隊模式改用通行證，過期時自動重新登入一次 */
     async call(payload, auth) {
+      if (!auth && LR.mode() === "team" && LR.turnstile.enabled()) return this.callWithSession(payload, false);
+      return this.raw(payload, auth || this.authFor(payload.action));
+    },
+    async callWithSession(payload, retried) {
+      const s = await this.ensureSession();
+      try {
+        return await this.raw(payload, { session: s.t });
+      } catch (err) {
+        if (!retried && (err.code === "SESSION_EXPIRED" || err.code === "LOGIN_REQUIRED")) {
+          // 只清掉「失敗的那一張」：同時有別的請求已經重新登入時，不要把新的通行證也清掉
+          const cur = LR.session.get();
+          if (cur && cur.t === s.t) LR.session.clear();
+          return this.callWithSession(payload, true);
+        }
+        throw err;
+      }
+    },
+    /** 有效的通行證；沒有就用記住的通關碼重新登入（同時多個請求只登入一次） */
+    ensureSession() {
+      const s = LR.session.get();
+      if (s) return Promise.resolve(s);
+      if (!this._pending) {
+        const t = LR.team.get();
+        if (!t) return Promise.reject(Object.assign(new Error("請先在網頁右上角輸入團隊通關碼"), { status: 401 }));
+        const admin = LR.team.adminCode();
+        this._pending = this.login({ code: t.code, name: t.name, adminCode: admin })
+          .then((j) => { LR.session.save(j, LR.team.remembered()); return LR.session.get(); })
+          .finally(() => { this._pending = null; });
+      }
+      return this._pending;
+    },
+    /** 登入：先通過人機驗證，再用通關碼（和選填的管理員密碼）換通行證。host：放驗證框的位置 */
+    async login(cred, host) {
+      const turnstile = await LR.turnstile.token(host);
+      const body = { action: "login", code: cred.code, name: cred.name || "", turnstile };
+      if (cred.adminCode) body.adminCode = cred.adminCode;
+      return this.raw(body, {});
+    },
+    /** 直接送出（不處理通行證） */
+    async raw(payload, auth) {
       const url = this.url();
       if (!url) throw new Error("尚未設定後端服務網址");
       let res;
       try {
         // 不加自訂 header（text/plain），避免 CORS 預檢；host 固定為 script.google.com
-        res = await fetch(url, { method: "POST", body: JSON.stringify(Object.assign({}, auth || this.authFor(payload.action), payload)), redirect: "follow" });
+        res = await fetch(url, { method: "POST", body: JSON.stringify(Object.assign({}, auth || {}, payload)), redirect: "follow" });
       } catch {
         throw new Error("連不到後端服務，請檢查網路");
       }
@@ -691,7 +822,8 @@
       try { j = await res.json(); } catch { throw new Error("後端服務回應格式錯誤（確認 Apps Script 有部署成「網頁應用程式」、存取權為「所有人」）"); }
       if (!j || !j.ok) {
         const err = new Error(LR.cleanText(j && j.error, 200) || "後端服務發生錯誤");
-        if (/通關碼錯誤|管理員密碼錯誤|請先在網頁右上角/.test(err.message)) err.status = 401;
+        if (j && /^[A-Z_]{1,40}$/.test(j.code || "")) err.code = j.code;
+        if (/通關碼錯誤|管理員密碼錯誤|請先在網頁右上角|登入已過期|請重新登入/.test(err.message)) err.status = 401;
         throw err;
       }
       return j;
@@ -1184,6 +1316,7 @@
     const field = (id, label, attrs, help) =>
       E("div", { class: "field" }, E("label", { for: id, text: label }), E("input", Object.assign({ id, class: "input" }, attrs)), help ? E("p", { class: "help", text: help }) : null);
     const status = E("p", { class: "dialog-status", role: "status" });
+    const tsBox = E("div", { class: "ts-box", hidden: true });   // Turnstile 需要互動時，勾選框會出現在這裡
     const btnSave = E("button", { class: "btn primary", type: "submit", text: "開始使用" });
     const btnOff = E("button", { class: "btn ghost danger", type: "button", text: "登出" });
     const btnCancel = E("button", { class: "btn ghost", type: "button", text: "取消" });
@@ -1225,7 +1358,7 @@
       E("div", { class: "dialog-h" }, E("h2", { id: "setTitle", text: "開始使用" }),
         E("p", { class: "help", text: "輸入團隊通關碼就能上傳影片、看報告，不需要 GitHub 帳號。" })),
       E("div", { class: "seg", role: "tablist", style: "margin-bottom:16px" }, segTeam, segDev),
-      teamBox, devBox, advBox, status,
+      teamBox, devBox, advBox, tsBox, status,
       E("div", { class: "dialog-actions" }, btnOff, E("span", { class: "spacer" }), btnCancel, btnSave));
     const dlg = E("dialog", { class: "dialog", "aria-labelledby": "setTitle" }, form);
     const $f = (id) => form.querySelector("#" + id);
@@ -1283,6 +1416,7 @@
       const uploadUrl = $f("setUpload").value.trim();
       if (!LR.settings.validUploadUrl(uploadUrl)) return fail("後端服務網址格式不對，應該是 https://script.google.com/macros/s/…/exec");
       btnSave.disabled = true;
+      tsBox.hidden = true;
       status.textContent = "連線測試中…";
       status.className = "dialog-status";
       try {
@@ -1293,16 +1427,23 @@
           if (!code) return fail("請輸入團隊通關碼");
           if (!uploadUrl) return fail("網站沒有設定後端服務網址，請聯絡專題負責人");
           LR.settings.save(Object.assign({}, cur, { uploadUrl }), LR.settings.token(), LR.settings.remembered());
-          const r = await LR.drive.call({ action: "ping" }, { code, name });
-          if (admin) await LR.drive.call({ action: "ping" }, { adminCode: admin, name });
+          let session = null;
+          if (LR.turnstile.enabled()) {
+            // 開了人機驗證：通過後用通關碼換一張通行證，之後的請求都不再帶通關碼
+            status.textContent = "人機驗證中…（如果下面出現勾選框，請勾一下）";
+            session = await LR.drive.login({ code, name, adminCode: admin }, tsBox);
+          } else {
+            await LR.drive.raw({ action: "ping" }, { code, name });
+            if (admin) await LR.drive.raw({ action: "ping" }, { adminCode: admin, name });
+          }
           // 通關碼模式不使用 GitHub token，避免兩種身分混用
           LR.settings.disconnect();
           LR.team.save(code, name, rememberTeam.checked);
           LR.team.setAdmin(admin);
+          if (session) LR.session.save(session, rememberTeam.checked);
           dlg.close();
           LR.events.dispatchEvent(new Event("connection"));
           LR.toast(`歡迎${name ? "，" + name : ""}！${admin ? "已用管理員身分登入" : "可以開始上傳了"}`, "good");
-          void r;
         } else {
           const s = {
             owner: $f("setOwner").value.trim(),

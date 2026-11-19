@@ -48,6 +48,7 @@
         </tbody>
       </table>
       <p>網站<strong>不收集</strong>：聲音、位置、聯絡方式、身分證字號，也不使用追蹤或廣告 Cookie。臉部偵測在你自己的瀏覽器裡完成，鏡頭畫面不會即時傳到任何伺服器。</p>
+      <p>登入時會使用 <strong>Cloudflare Turnstile</strong> 人機驗證，防止程式自動猜通關碼。驗證過程中 Cloudflare 會看到你的 IP 位址與瀏覽器、裝置的技術資訊，用來判斷是不是機器人，依 <a href="https://www.cloudflare.com/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer">Cloudflare 的 Turnstile 隱私權政策</a>處理；本專題只會收到「通過／沒通過」的結果。</p>
     </section>
 
     <section id="purpose">
@@ -120,6 +121,7 @@
       <h2>7. 安全措施</h2>
       <ul>
         <li>網站全程 HTTPS；沒有通關碼讀不到任何資料，密碼錯太多次會暫停一分鐘</li>
+        <li>登入前要先通過人機驗證；登入後改用最多 6 小時有效的「通行證」，通關碼不會在每次操作時重複傳送</li>
         <li>通關碼、GitHub 存取權杖只放在後端服務，網頁程式碼裡沒有</li>
         <li>資料 repo 為私有；每次新增、刪除都有紀錄，可以追查</li>
         <li>網站設定為不讓搜尋引擎收錄</li>

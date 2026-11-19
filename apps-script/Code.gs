@@ -1,5 +1,5 @@
 /**
- * 唇語專題：後端服務（Google Apps Script）v4
+ * 唇語專題：後端服務（Google Apps Script）v5
  *
  * 功能
  *  1. 影片存進雲端硬碟，依「念的內容」自動建子資料夾
@@ -18,6 +18,9 @@
  *  ADMIN_CODE       管理員密碼（刪除資料用，只有你知道）— 建議 16 個以上隨機字元
  *  PRIVACY_VERSION  目前的隱私權政策版本（跟網站 assets/config.js 的 privacyVersion 一樣）；
  *                   有設定時，沒有同意這個版本的樣本會被拒收
+ *  TURNSTILE_SECRET Cloudflare Turnstile 的「秘密金鑰」。有設定時，輸入通關碼登入前必須通過人機驗證，
+ *                   之後用後端發的「通行證」（最多 6 小時）操作，不再每次送通關碼
+ *  TURNSTILE_HOSTNAMES 允許的網站網域（逗號分隔），預設 sakurasnow-0w0.github.io
  *
  * 設定步驟請看 README 的「後端服務設定」一節。
  */
@@ -37,6 +40,10 @@ var CONFIG = {
   FAILS_PER_MINUTE: 15,                  // 每種身分每分鐘可錯幾次
   TOKEN_FAILS_PER_DAY: 300,              // GitHub token 驗證失敗每天上限（每次失敗都要連 GitHub）
   STRONG_CODE_LENGTH: 16,                // 通關碼夠長時，輸入正確的人不會被「錯太多次」擋住
+  LOGIN_PER_MINUTE: 60,                  // 全站每分鐘最多登入次數
+  LOGIN_PER_DAY: 2000,                   // 全站每天最多登入次數（每次登入要連一次 Cloudflare，保護對外連線配額）
+  SESSION_TTL: 21600,                    // 通行證有效秒數（Apps Script 快取最多 6 小時）
+  DEFAULT_HOSTNAMES: "sakurasnow-0w0.github.io",
 };
 
 var SAMPLE_PATH_RE = /^data\/samples\/[A-Za-z0-9_-]{1,80}\.json$/;
@@ -49,6 +56,8 @@ function doPost(e) {
     if (!e || !e.postData || !e.postData.contents) throw new Error("沒有收到資料");
     if (e.postData.contents.length > CONFIG.MAX_VIDEO_BYTES * 1.4 + 20000) throw new Error("資料太大");
     var req = JSON.parse(e.postData.contents);
+    if (req.action === "login") return json_(login_(req));
+    if (req.action === "logout") return json_(logout_(req));
     var who = authorize_(req);
     switch (req.action) {
       case "ping": return json_({ ok: true, role: who.role, name: who.name, folder: who.role === "member" || who.role === "admin" ? root_().getName() : "" });
@@ -66,12 +75,14 @@ function doPost(e) {
       default: throw new Error("不支援的動作");
     }
   } catch (err) {
-    return json_({ ok: false, error: String((err && err.message) || err) });
+    var out = { ok: false, error: String((err && err.message) || err) };
+    if (err && typeof err.code === "string") out.code = err.code;   // 例如 SESSION_EXPIRED，前端會自動重新登入
+    return json_(out);
   }
 }
 
 function doGet() {
-  return json_({ ok: true, service: "lipread-upload", version: 4 });
+  return json_({ ok: true, service: "lipread-upload", version: 5, turnstile: turnstileOn_() });
 }
 
 function json_(o) {
@@ -165,8 +176,17 @@ function checkCode_(kind, given, secretKey, wrongMsg) {
   throw new Error(wrongMsg);
 }
 
+function codedError_(msg, code) {
+  var e = new Error(msg);
+  e.code = code;
+  return e;
+}
+
 function authorize_(req) {
   var name = clean_(req.name, 30);
+  if (req.session) return getSession_(req.session);
+  // 開了 Turnstile 之後，通關碼只能在 login 時使用（要先通過人機驗證），不能直接帶在每個請求上
+  if (turnstileOn_() && (req.code || req.adminCode)) throw codedError_("請重新登入（需要人機驗證）", "LOGIN_REQUIRED");
   if (req.adminCode) {
     checkCode_("admin", req.adminCode, "ADMIN_CODE", "管理員密碼錯誤");
     return { role: "admin", name: "管理員：" + (name || "未填名字") };
@@ -188,6 +208,67 @@ function authorize_(req) {
     }
   }
   throw new Error("請先在網頁右上角輸入通關碼");
+}
+
+// ───────── Turnstile 人機驗證與通行證 ─────────
+function turnstileOn_() {
+  return !!prop_("TURNSTILE_SECRET");
+}
+
+/** 向 Cloudflare 確認人機驗證的結果；只接受來自我們網站網域的驗證。 */
+function verifyTurnstile_(token) {
+  if (typeof token !== "string" || !token || token.length > 4096) throw new Error("請先完成人機驗證");
+  var res = UrlFetchApp.fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "post",
+    payload: { secret: prop_("TURNSTILE_SECRET"), response: token },
+    muteHttpExceptions: true,
+  });
+  var data = {};
+  try { data = JSON.parse(res.getContentText()); } catch (x) { data = {}; }
+  if (!data.success) throw new Error("人機驗證沒有通過，請再試一次");
+  var allowed = (prop_("TURNSTILE_HOSTNAMES") || CONFIG.DEFAULT_HOSTNAMES).split(",").map(function (h) { return h.trim(); }).filter(String);
+  if (allowed.indexOf("*") < 0 && allowed.indexOf(String(data.hostname || "")) < 0) throw new Error("人機驗證來源不正確");
+}
+
+function sessionKey_(token) {
+  return "sess_" + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
+}
+
+function newSession_(who) {
+  var raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Utilities.getUuid() + Date.now());
+  var raw2 = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + raw.join(","));
+  var hex = function (bytes) { return bytes.map(function (b) { return ((b & 0xff) + 256).toString(16).slice(1); }).join(""); };
+  var token = hex(raw.slice(0, 16)) + hex(raw2.slice(0, 16));   // 64 個十六進位字元
+  CacheService.getScriptCache().put(sessionKey_(token), JSON.stringify({ role: who.role, name: who.name }), CONFIG.SESSION_TTL);
+  return token;
+}
+
+function getSession_(token) {
+  if (typeof token !== "string" || !/^[0-9a-f]{64}$/.test(token)) throw codedError_("登入已過期，請重新登入", "SESSION_EXPIRED");
+  var v = CacheService.getScriptCache().get(sessionKey_(token));
+  if (!v) throw codedError_("登入已過期，請重新登入", "SESSION_EXPIRED");
+  var s = JSON.parse(v);
+  return { role: s.role === "admin" ? "admin" : "team", name: String(s.name || "訪客") };
+}
+
+/** 登入：（開了 Turnstile 時先驗證）→ 檢查通關碼（和選填的管理員密碼）→ 發通行證。 */
+function login_(req) {
+  rate_("login", 1, CONFIG.LOGIN_PER_MINUTE, CONFIG.LOGIN_PER_DAY);
+  var name = clean_(req.name, 30);
+  if (turnstileOn_()) verifyTurnstile_(req.turnstile);
+  if (!req.code) throw new Error("請輸入團隊通關碼");
+  checkCode_("team", req.code, "TEAM_CODE", "通關碼錯誤");
+  var who = { role: "team", name: name ? "訪客：" + name : "訪客" };
+  if (req.adminCode) {
+    checkCode_("admin", req.adminCode, "ADMIN_CODE", "管理員密碼錯誤");
+    who = { role: "admin", name: "管理員：" + (name || "未填名字") };
+  }
+  return { ok: true, session: newSession_(who), role: who.role, name: who.name, expiresIn: CONFIG.SESSION_TTL };
+}
+
+function logout_(req) {
+  if (typeof req.session === "string" && /^[0-9a-f]{64}$/.test(req.session)) CacheService.getScriptCache().remove(sessionKey_(req.session));
+  return { ok: true };
 }
 
 function requireDelete_(who) {
@@ -621,6 +702,7 @@ function setupCheck() {
     else Logger.log(k + "：已設定（" + v.length + " 個字元）");
   });
   if (prop_("TEAM_CODE") && prop_("TEAM_CODE") === prop_("ADMIN_CODE")) Logger.log("⚠️ 通關碼和管理員密碼不要設成一樣");
+  Logger.log("TURNSTILE_SECRET：" + (turnstileOn_() ? "已設定（登入需要人機驗證，允許網域：" + (prop_("TURNSTILE_HOSTNAMES") || CONFIG.DEFAULT_HOSTNAMES) + "）" : "未設定（不使用人機驗證）"));
   Logger.log("PRIVACY_VERSION：" + (prop_("PRIVACY_VERSION") ? prop_("PRIVACY_VERSION") + "（後端會拒收沒有同意這個版本的樣本）" : "⚠️ 未設定（後端不檢查同意紀錄）"));
   if (prop_("GITHUB_TOKEN")) {
     var r = gh_("get", "");

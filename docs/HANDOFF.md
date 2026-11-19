@@ -1,7 +1,7 @@
 # 交接審查文件：唇語辨識專題網站
 
 > 給接手審查或維護的人（或另一個 AI 工作階段）。
-> 最後更新：2026-11-19，後端 v4。對應的 commit 請看 `git log -1 -- docs/HANDOFF.md`（文件改版時一定會留下 commit）。
+> 最後更新：2026-11-20，後端 v5。對應的 commit 請看 `git log -1 -- docs/HANDOFF.md`（文件改版時一定會留下 commit）。
 
 ---
 
@@ -42,6 +42,7 @@
         ↓
 Google Apps Script（Code.gs）
   ├─ 驗證：通關碼 / 管理員密碼 / 使用者自己的 GitHub token
+  │    開了 Turnstile 時：login（Turnstile＋通關碼）→ 發通行證（CacheService，最多 6 小時）→ 之後只帶通行證
   ├─ 限流：猜錯次數、每分鐘存檔／讀取次數、每日讀取次數、每日影片總量
   ├─ 影片 → DriveApp，依「念的內容」建子資料夾（檢查檔頭、單支 10 MB）
   └─ GitHub REST API（用存在指令碼屬性的 GITHUB_TOKEN）→ 私有資料 repo
@@ -79,15 +80,17 @@ Google Apps Script（Code.gs）
 | 身分 | 怎麼取得 | 可以做 | 後端記錄的名字 |
 |---|---|---|---|
 | 未登入 | — | 只能看 `privacy.html`（前端畫面鎖定，**只是外觀**） | — |
-| 團隊 `team` | 輸入 `TEAM_CODE` | 上傳、讀全部樣本／日誌／日程、新增、勾選、**修改任何人的待辦**（標題、截止日、負責人）、寫日誌 | `訪客：<自己填的名字>` |
+| 團隊 `team` | 輸入 `TEAM_CODE`（開了 Turnstile 時先通過人機驗證，換一張通行證） | 上傳、讀全部樣本／日誌／日程、新增、勾選、**修改任何人的待辦**（標題、截止日、負責人）、寫日誌 | `訪客：<自己填的名字>` |
 | 管理員 `admin` | 另輸入 `ADMIN_CODE` | 以上＋刪樣本、刪日誌、刪待辦、設定專題總截止日 | `管理員：<自己填的名字>` |
 | 開發者 `member` | 自己的 Fine-grained GitHub token | 等同管理員；前端也可直接打 GitHub API | GitHub 帳號 |
 
 **真正的保護在後端**：靜態頁面和程式碼是公開的，前端鎖定可以被繞過，但沒有通關碼呼叫不了後端。
 
-**存在瀏覽器裡的東西**：團隊通關碼（勾「記住」才放 localStorage，否則 sessionStorage）、管理員密碼（只放 sessionStorage）、**開發者的 GitHub token（勾「記住」時放 localStorage）**、同意紀錄（localStorage，記著是誰同意的；登出、不同意、換名字都要重新同意）。
+**存在瀏覽器裡的東西**：團隊通關碼（勾「記住」才放 localStorage，否則 sessionStorage）、管理員密碼（只放 sessionStorage）、通行證 `lr-session`（跟通關碼放同一處；管理員通行證一律只放 sessionStorage；過期前 2 分鐘就當作過期）、**開發者的 GitHub token（勾「記住」時放 localStorage）**、同意紀錄（localStorage，記著是誰同意的；登出、不同意、換名字都要重新同意）。
 
-**指令碼屬性**：`ROOT_FOLDER_ID`、`GITHUB_TOKEN`、`TEAM_CODE`、`ADMIN_CODE`（建議 16 個字元以上的隨機字串，可用編輯器的 `makeCode` 函式產生）、`PRIVACY_VERSION`（有設時，後端拒收沒有同意這個版本的樣本）。
+**指令碼屬性**：`ROOT_FOLDER_ID`、`GITHUB_TOKEN`、`TEAM_CODE`、`ADMIN_CODE`（建議 16 個字元以上的隨機字串，可用編輯器的 `makeCode` 函式產生）、`PRIVACY_VERSION`（有設時，後端拒收沒有同意這個版本的樣本）、`TURNSTILE_SECRET`（有設時開啟人機驗證）、`TURNSTILE_HOSTNAMES`（允許的網域，預設 `sakurasnow-0w0.github.io`）。
+
+**Turnstile 與通行證**：前端 `config.js` 的 `turnstileSiteKey` 有填時，`LR.drive.call` 改走 `callWithSession`：沒有通行證就用記住的通關碼＋新的 Turnstile 驗證碼呼叫 `login`（同時多個請求只登入一次）；後端回 `SESSION_EXPIRED`／`LOGIN_REQUIRED` 時自動重新登入並重試一次。後端設了 `TURNSTILE_SECRET` 後，直接帶通關碼的請求一律回 `LOGIN_REQUIRED`。快取只存通行證的 SHA-256，不存原文。開發者 token 不受影響。
 
 **猜密碼的處理**：依身分（team／admin／token）分開計數。通關碼夠長（≥16 字元）時，輸入正確的人永遠可以進來，猜錯的只會被計數與擋下，別人故意狂打錯的也鎖不住大家；通關碼太短時，錯太多次就整分鐘暫停。token 每次驗證失敗都要連 GitHub，所以失敗結果快取 10 分鐘，並有每日上限。
 
@@ -118,10 +121,12 @@ Google Apps Script（Code.gs）
 
 ## 6. 後端 API（`doPost`，body 為 JSON 字串）
 
-所有 action 都會先經過 `authorize_`。限流數字在 `Code.gs` 的 `CONFIG`。
+除了 `login`／`logout`，所有 action 都會先經過 `authorize_`（接受 `session`、`code`、`adminCode` 或 `token`）。錯誤回應可能帶 `code`（`SESSION_EXPIRED`、`LOGIN_REQUIRED`）。限流數字在 `Code.gs` 的 `CONFIG`。
 
 | action | 身分 | 參數 | 限流 | 說明 |
 |---|---|---|---|---|
+| `login` | 不用（自己檢查通關碼） | code, adminCode?, name, turnstile | 登入桶 60 次／分、2,000 次／天 | 有 `TURNSTILE_SECRET` 時先向 Cloudflare 驗證（含網域）；回傳 session、role、name、expiresIn |
+| `logout` | 不用 | session | — | 作廢通行證 |
 | `ping` | 任一 | — | — | 回傳 role、name |
 | `upload` | 任一 | label, speaker, mimeType, ext, data(base64) | 存檔桶 60 次／分；全站每日 500 MB | 單支 10 MB；檢查檔頭（MP4/MOV 的 box 或 WebM 的 EBML） |
 | `saveSample` | 任一 | sample | 存檔桶 | 後端重組欄位、覆寫 createdBy／createdAt；檢查同意；失敗時清掉 1 小時內剛上傳的影片 |
@@ -148,7 +153,7 @@ Google Apps Script（Code.gs）
 node tests/backend.test.js
 ```
 
-用假的 Apps Script 環境跑 30 項檢查。Node 裡請求是一個一個跑，**沒辦法驗證加鎖在真正同時送出時的效果**，這部分要另外部署測試版實測。
+用假的 Apps Script 環境跑 58 項檢查（含 Turnstile 登入與通行證）。Node 裡請求是一個一個跑，**沒辦法驗證加鎖在真正同時送出時的效果**，這部分要另外部署測試版實測。
 
 ### 前端（本機，不碰正式後端）
 
@@ -157,6 +162,7 @@ cd lipread-ssi
 python -m http.server 8766 --bind 127.0.0.1
 ```
 
+0. **如果 `config.js` 已填 `turnstileSiteKey`**：本機測試時暫時改成 Cloudflare 的測試金鑰 `1x00000000000000000000AA`（一律通過）或 `3x00000000000000000000FF`（一定要勾選），**不要 commit**。正式金鑰綁定網域，在 127.0.0.1 會失敗。
 1. **用無痕視窗**，或先在 DevTools 清掉這個網址的 localStorage／sessionStorage。瀏覽器若記住了通關碼，頁面一載入就會連正式後端，來不及換成假後端。
 2. 開 `http://127.0.0.1:8766/`（不要用 `localhost`，Windows 可能先解析成 `::1` 而連不到）。
 3. **登入前**，在 DevTools Console 貼上假後端（重新整理後會消失，要再貼一次）：
@@ -171,7 +177,14 @@ window.fetch = async (url, opts = {}) => {
   if (!String(url).startsWith("https://script.google.com/")) return realFetch(url, opts);
   const b = JSON.parse(opts.body);
   const json = (o) => new Response(JSON.stringify(o), { headers: { "Content-Type": "application/json" } });
-  const role = b.adminCode === "test-admin" ? "admin" : b.code === "test-code" ? "team" : null;
+  if (b.action === "login") {             // 開了 Turnstile 時前端會先呼叫 login
+    if (b.code !== "test-code" || (b.adminCode && b.adminCode !== "test-admin")) return json({ ok: false, error: "通關碼錯誤" });
+    const r = b.adminCode ? "admin" : "team";
+    return json({ ok: true, session: (r === "admin" ? "a" : "b").repeat(64), role: r, name: (r === "admin" ? "管理員：" : "訪客：") + (b.name || ""), expiresIn: 21600 });
+  }
+  if (b.action === "logout") return json({ ok: true });
+  const role = b.session ? ({ ["a".repeat(64)]: "admin", ["b".repeat(64)]: "team" })[b.session] || null
+    : b.adminCode === "test-admin" ? "admin" : b.code === "test-code" ? "team" : null;
   if (!role) return json({ ok: false, error: "通關碼錯誤" });
   const who = (role === "admin" ? "管理員：" : "訪客：") + (b.name || "");
   switch (b.action) {
@@ -214,7 +227,7 @@ window.fetch = async (url, opts = {}) => {
 ## 9. 建議的審查順序
 
 1. `apps-script/Code.gs` 全檔：身分驗證、限流、每個 action 的權限、`buildSample_` 的輸入驗證、`trash_` 範圍、鎖與重試；跑 `node tests/backend.test.js`
-2. `assets/core.js`：`LR.drive.call`、`LR.mode`、`LR.settings`（後端網址只有刻意自訂才存）、`LR.validateSample`、`LR.newSample`、`LR.mountHeader` 鎖定邏輯、`buildSettingsDialog`、`buildConsentDialog`、`LR.policy`
+2. `assets/core.js`：`LR.drive.call`／`callWithSession`／`ensureSession`／`login`、`LR.session`、`LR.turnstile`、`LR.mode`、`LR.settings`（後端網址只有刻意自訂才存）、`LR.validateSample`、`LR.newSample`、`LR.mountHeader` 鎖定邏輯、`buildSettingsDialog`、`buildConsentDialog`、`LR.policy`
 3. 所有把外部資料放進畫面的地方（搜尋 `el(`、`textContent`、`innerHTML`、`setAttribute("href"`）
 4. `index.html` 引導錄影：鏡頭生命週期（`startCam` / `stopCam` / `visibilitychange` / `pagehide`）、錄影中切換分頁、連續錄影中按停止、上傳中再錄
 5. `report.html` 的刪除流程（單筆、整批）與重新載入
@@ -222,7 +235,7 @@ window.fetch = async (url, opts = {}) => {
 
 ## 10. 目前狀態
 
-- 後端 v4（`doGet` 回傳 `version: 4`）；修正內容見 SECURITY.md
+- 後端 v5（`doGet` 回傳 `version: 5` 與 `turnstile: true/false`）；修正內容見 SECURITY.md
 - 資料 repo 已有 `data/schedule.json`（交接文件匯入的 9 項待辦）
 - 隱私權請求表單：`assets/config.js` 的 `contactFormUrl`；刻意不放信箱，避免公開 repo 被掃信箱
-- 隱私權政策版本 `2026-11-19`；改內容時請同時改 `config.js` 的 `privacyVersion` 和指令碼屬性 `PRIVACY_VERSION`，所有人會被要求重新同意
+- 隱私權政策版本 `2026-11-20`（加入 Cloudflare Turnstile 說明）；改內容時請同時改 `config.js` 的 `privacyVersion` 和指令碼屬性 `PRIVACY_VERSION`，所有人會被要求重新同意

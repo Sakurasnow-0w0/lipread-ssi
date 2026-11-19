@@ -57,6 +57,7 @@
 - 把影片存進雲端硬碟，依「念的內容」自動建子資料夾
 - **用存在後端的 GitHub token** 把口型數據、日誌、日程寫進私有 repo——token 不在網頁裡，任何人都看不到
 - 檢查通關碼／管理員密碼；密碼錯太多次會暫停一分鐘；全站每分鐘上傳次數有上限
+- （選用）登入前用 Cloudflare Turnstile 做人機驗證，通過後發一張最多 6 小時的「通行證」，之後不再傳通關碼
 
 ### 第一次部署
 1. 雲端硬碟建一個影片資料夾，複製網址最後那串資料夾 ID；資料夾分享給隊友（「一般存取權」保持「限制」，影片有人臉）
@@ -68,7 +69,9 @@
    | `ROOT_FOLDER_ID` | 第 1 步的資料夾 ID |
    | `GITHUB_TOKEN` | 專門給後端用的 Fine-grained token（只勾 `lipread-ssi-data`、Contents 讀寫） |
    | `TEAM_CODE` | 團隊通關碼，給同學用 |
-   | `ADMIN_CODE` | 管理員密碼，只有你知道，不要跟通關碼一樣 |
+   | `ADMIN_CODE` | 管理員密碼，只有你知道，不要跟通關碼一樣（建議用編輯器的 `makeCode` 產生） |
+   | `PRIVACY_VERSION` | 跟 `assets/config.js` 的 `privacyVersion` 一樣（目前 `2026-11-20`） |
+   | `TURNSTILE_SECRET` | （選用）Cloudflare Turnstile 的**秘密金鑰**，見下方「人機驗證」 |
 
 4. 函式選 `setupCheck` → 執行 → 授權（「Google 尚未驗證」→ 進階 → 前往）。執行記錄應顯示四個屬性「已設定」、資料 repo 連線「成功」
 5. 「部署 → 新增部署作業」→ 網頁應用程式；執行身分「**我**」、存取權「**所有人**」→ 複製網址，寫進 `assets/config.js` 的 `uploadUrl`
@@ -77,12 +80,24 @@
 - 更新 `Code.gs`：整份貼上新版（設定都在指令碼屬性，不用改任何一行）→「部署 → **管理部署作業**」→ 鉛筆圖示 → 版本選「**新版本**」→ 部署。**網址不變**，網站不用改
 - 換通關碼／管理員密碼／token：直接改「指令碼屬性」即可，**不用重新部署**，立刻生效
 
+### 人機驗證（Cloudflare Turnstile，選用）
+開了之後，輸入通關碼前要先通過 Cloudflare 的人機驗證（大多數人什麼都不用做，偶爾要勾一下），程式就沒辦法自動猜通關碼，所以通關碼可以短一點、好分享。
+
+1. 到 Cloudflare 後台 → Turnstile → 新增網站：網域填 `sakurasnow-0w0.github.io`，模式選「受管理（Managed）」
+2. **網站金鑰**（site key，公開的）→ 寫進 `assets/config.js` 的 `turnstileSiteKey`
+3. **秘密金鑰**（secret key）→ 只放 Apps Script 的指令碼屬性 `TURNSTILE_SECRET`，**不要寫進任何檔案、不要貼到聊天或 issue**
+4. 順序一定要：先部署 v5 後端 → 再推上有網站金鑰的 `config.js` → 最後才設 `TURNSTILE_SECRET`。反過來的話，設了秘密金鑰但網站還不會做驗證，大家會登入不了
+5. 網站換網域時，要在 Cloudflare 加上新網域，並把指令碼屬性 `TURNSTILE_HOSTNAMES` 設成新網域（逗號分隔多個）
+
+關掉：刪除指令碼屬性 `TURNSTILE_SECRET`（立刻生效），網站的 `turnstileSiteKey` 留著也沒關係。
+
 上傳後每段樣本會記下雲端檔案編號，後台可直接播放（觀看者要有那個資料夾的權限）。刪除樣本時雲端影片會移到垃圾桶，30 天內可還原。
 
 ## 隱私與搜尋引擎
 
 - 每一頁都有 `noindex, nofollow` 標記，Google、Bing 等正規搜尋引擎不會收錄網站
 - 沒輸入通關碼時，頁面內容整個隱藏，只顯示登入視窗
+- 開了人機驗證時，登入頁會載入 Cloudflare 的驗證程式（`challenges.cloudflare.com`）；隱私權政策有說明
 - 真正的資料保護在後端：沒有通關碼，讀不到任何口型數據、日程、日誌，也不能上傳
 - 注意：網頁程式碼本身是公開的（公開 repo），但裡面沒有任何密碼、token 或資料
 
