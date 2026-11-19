@@ -4,5 +4,6 @@ window.LR_CONFIG = {
   owner: "Sakurasnow-0w0",
   repo: "lipread-ssi-data", // 存口型數據的私有 repo
   branch: "main",
-  uploadUrl: "", // 部署 apps-script/Code.gs 後，把網頁應用程式網址貼在這裡（https://script.google.com/macros/s/…/exec）
+  // 影片上傳服務（apps-script/Code.gs 部署後的網址）。公開沒關係：沒有資料 repo 寫入權限的 GitHub token 會被拒絕
+  uploadUrl: "https://script.google.com/macros/s/AKfycbx1BaHDXw8TOnZJr1OSrMFkMBcOr6qrCspMv9Qw5GAwHBDJO5npExrMmFMb05OqI7E15g/exec",
 };
