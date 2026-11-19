@@ -727,7 +727,18 @@
 
     async connect(settings, token) {
       const user = await this.request("/user", { settings, token });
-      const repo = await this.request("", { settings, token });
+      let repo;
+      try {
+        repo = await this.request("", { settings, token });
+      } catch (e) {
+        // 私有 repo 沒權限時 GitHub 一律回 404
+        if (e.status === 404) {
+          const err = new Error(`token 有效（${LR.cleanText(user.login, 60)}），但沒有授權 ${settings.repo}：請到 GitHub 的 token 設定，在 Repository access 勾選這個 repo，並把 Contents 設為 Read and write`);
+          err.status = 404;
+          throw err;
+        }
+        throw e;
+      }
       return { login: LR.cleanText(user.login, 60), isPrivate: !!repo.private };
     },
 
