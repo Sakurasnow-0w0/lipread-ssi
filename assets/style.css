@@ -103,6 +103,7 @@ code { background: var(--surface-2); border: 1px solid var(--line); padding: 1px
 .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .conn.on .conn-dot { background: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
 .conn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conn-warn { font-size: 11px; font-weight: 700; color: var(--warn-ink); background: var(--warn-soft); padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
 
 /* ───────── 版面 ───────── */
 .container { max-width: 1200px; margin: 0 auto; padding: 28px 24px 64px; }

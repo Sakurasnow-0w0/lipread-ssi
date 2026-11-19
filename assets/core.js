@@ -32,7 +32,7 @@
   const LIP_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
   const LIP_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191];
   const LIP_LEN = (LIP_OUTER.length + LIP_INNER.length) * 2;
-  const MAX_VIDEO_BYTES = 30 * 1024 * 1024; // Apps Script 單次請求上限約 50 MB（base64 會變大 1/3）
+  const MAX_VIDEO_BYTES = 10 * 1024 * 1024; // 跟後端一致（15 秒完整畫面約 5 MB）
   const UPLOAD_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,200}\/exec$/;
 
   const LR = (window.LR = { FPS, MAX_SECONDS, MAX_LABEL, MAX_SPEAKER, DIM, MAX_VIDEO_BYTES, events: new EventTarget() });
@@ -46,7 +46,10 @@
         if (k === "class") e.className = v;
         else if (k === "text") e.textContent = v;
         else if (k === "style") e.style.cssText = v;
-        else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+        else if (/^on/i.test(k)) {
+          if (typeof v !== "function") throw new Error("事件屬性必須是函式：" + k);
+          e.addEventListener(k.slice(2), v);
+        }
         else e.setAttribute(k, v === true ? "" : String(v));
       }
     }
@@ -316,7 +319,7 @@
       const s = samples[j];
       if (s && s.feature) { raw.push(s.feature); lips.push(s.lips); } else miss++;
     }
-    const quality = { frames: n, missed: miss, duration: Math.round(last / 10) / 100 };
+    const quality = { frames: n, missed: miss, duration: Math.round(last / 10) / 100, source: "live" };
     if (raw.length < 5 || miss > n * 0.5) throw new Error(`有 ${miss}/${n} 格抓不到臉，請把臉放進框裡重錄`);
     return { frames: preprocess(raw), lips, quality };
   };
@@ -367,7 +370,7 @@
         if (f) { raw.push(f); lips.push(lipShape(res, W, H)); } else miss++;
         if (onProgress) onProgress({ i: i + 1, n, found: raw.length, dur });
       }
-      const quality = { frames: n, missed: miss, duration: Math.round(dur * 100) / 100, width: W, height: H };
+      const quality = { frames: n, missed: miss, duration: Math.round(dur * 100) / 100, width: W, height: H, source: "file" };
       if (raw.length < 5 || miss > n * 0.5) {
         throw new Error(`有 ${miss}/${n} 格抓不到臉：請正面拍、光線充足、臉不要出鏡`);
       }
@@ -544,7 +547,7 @@
       dims: DIM,
       frames,
       lips: lips && lips.length ? lips : null,
-      quality: { frames: quality.frames, missed: quality.missed, duration: quality.duration },
+      quality: { frames: quality.frames, missed: quality.missed, duration: quality.duration, source: quality.source || "" },
       createdAt: new Date().toISOString(),
       createdBy: author || "",
       consent: LR.policy.accepted() ? { version: LR.policy.version, at: LR.policy.accepted().at } : null,
@@ -607,13 +610,16 @@
         repo: s.repo || CFG.repo,
         branch: s.branch || CFG.branch || "main",
         login: s.login || "",
-        uploadUrl: s.uploadUrl != null ? s.uploadUrl : (CFG.uploadUrl || ""),
+        // 只有使用者刻意改過（customUpload）才用存下的網址；否則一律用 config.js，網站換網址時大家會自動跟上
+        uploadUrl: s.customUpload && s.uploadUrl ? s.uploadUrl : (CFG.uploadUrl || ""),
+        customUpload: !!(s.customUpload && s.uploadUrl && s.uploadUrl !== CFG.uploadUrl),
       };
     },
     token() { return store.get("sessionStorage", TKEY) || store.get("localStorage", TKEY) || ""; },
     remembered() { return !!store.get("localStorage", TKEY); },
     save(s, token, remember) {
-      store.set("localStorage", SKEY, JSON.stringify({ owner: s.owner, repo: s.repo, branch: s.branch, login: s.login || "", uploadUrl: s.uploadUrl || "" }));
+      const custom = !!(s.uploadUrl && s.uploadUrl !== CFG.uploadUrl);
+      store.set("localStorage", SKEY, JSON.stringify({ owner: s.owner, repo: s.repo, branch: s.branch, login: s.login || "", uploadUrl: custom ? s.uploadUrl : "", customUpload: custom }));
       store.del("sessionStorage", TKEY);
       store.del("localStorage", TKEY);
       if (token) store.set(remember ? "localStorage" : "sessionStorage", TKEY, token);
@@ -1031,6 +1037,10 @@
         : "輸入通關碼";
       chip.replaceChildren(LR.el("span", { class: "conn-dot", "aria-hidden": "true" }), LR.el("span", { class: "conn-text", text }));
       chip.title = mode ? "已連線，點擊修改設定" : "點擊輸入團隊通關碼";
+      if (s.customUpload) {
+        chip.append(LR.el("span", { class: "conn-warn", text: "⚠ 自訂後端" }));
+        chip.title = "注意：正在使用自訂的後端服務網址，不是網站預設的。點擊可以改回來。";
+      }
     };
     const link = (href, key, text) => LR.el("a", { href, class: active === key ? "active" : null, "aria-current": active === key ? "page" : null, text });
     bar.append(
@@ -1089,11 +1099,12 @@
     accepted() {
       try {
         const c = JSON.parse(store.get("localStorage", CONSENT_KEY) || "null");
-        return c && c.version === this.version ? c : null;
+        // 同意紀錄要是「現在登入的這個人」的，共用裝置換人時要重新同意
+        return c && c.version === this.version && c.who === LR.whoami() ? c : null;
       } catch { return null; }
     },
     accept() {
-      const c = { version: this.version, at: new Date().toISOString() };
+      const c = { version: this.version, at: new Date().toISOString(), who: LR.whoami() };
       store.set("localStorage", CONSENT_KEY, JSON.stringify(c));
       LR.events.dispatchEvent(new Event("consent"));
       return c;
@@ -1142,6 +1153,7 @@
       dlg.close();
       LR.settings.disconnect();
       LR.team.clear();
+      store.del("localStorage", CONSENT_KEY); // 換人使用時要重新同意
       LR.events.dispatchEvent(new Event("connection"));
     });
     // 還沒同意前不能用 Esc 關掉（被瀏覽器強制關掉時再打開）
@@ -1179,7 +1191,7 @@
     const segDev = E("button", { type: "button", role: "tab", "data-m": "github", text: "開發者（GitHub token）" });
 
     // 通關碼
-    const rememberTeam = E("input", { type: "checkbox", id: "setTeamRemember", checked: true });
+    const rememberTeam = E("input", { type: "checkbox", id: "setTeamRemember" });
     const teamBox = E("div", null,
       field("setName", "你的名字或代號", { autocomplete: "nickname", maxlength: "30", placeholder: "例如：小明、A" }, "會記在上傳紀錄裡，方便知道是誰錄的。"),
       field("setCode", "團隊通關碼", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100", placeholder: "向專題負責人索取" }),
@@ -1244,7 +1256,7 @@
       $f("setCode").placeholder = t ? "已記住（留空沿用）" : "向專題負責人索取";
       $f("setAdmin").value = "";
       rememberDev.checked = LR.settings.remembered();
-      rememberTeam.checked = t ? LR.team.remembered() : true;
+      rememberTeam.checked = t ? LR.team.remembered() : false;
       btnOff.hidden = !LR.mode();
       btnCancel.hidden = !LR.mode(); // 還沒登入就不能取消
       status.className = "dialog-status";
@@ -1259,6 +1271,7 @@
     btnOff.addEventListener("click", () => {
       LR.settings.disconnect();
       LR.team.clear();
+      store.del("localStorage", CONSENT_KEY); // 換人使用時要重新同意
       dlg.close();
       LR.events.dispatchEvent(new Event("connection"));
       LR.toast("已登出，通關碼與 token 已從這個瀏覽器移除", "info");

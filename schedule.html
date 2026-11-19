@@ -193,7 +193,8 @@
   }
 
   async function op(o, okMsg) {
-    if (S.busy) return;
+    // 上一個動作還在處理：把畫面（例如剛按的勾選框）還原，不要顯示成已勾但沒存（M12）
+    if (S.busy) { render(); toast("上一個動作還在處理，請稍候再試", "warn"); return false; }
     S.busy = true;
     try {
       S.sch = normalize(await LR.api.scheduleOp(o));

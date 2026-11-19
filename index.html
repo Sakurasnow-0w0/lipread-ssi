@@ -400,6 +400,17 @@
     finally { S.busy = false; updateButtons(); }
   }
 
+  // 存樣本；失敗時不要留下沒有任何紀錄指向的影片（H4）。
+  // 團隊模式：後端會自動把「剛上傳、存樣本失敗」的影片丟進垃圾桶；開發者模式：在這裡自己清。
+  async function saveOrDiscard(sample, drive) {
+    try {
+      await LR.gh.putSample(sample);
+    } catch (e) {
+      if (drive && LR.mode() === "github") { try { await LR.drive.trash(drive.id); } catch { /* 清不掉就留給後端的 findOrphans */ } }
+      throw e;
+    }
+  }
+
   // ───────── 上傳佇列 ─────────
   function addFiles(files) {
     const vids = [...files].filter(LR.isVideoFile);
@@ -533,7 +544,7 @@
               q.driveName = `${drive.folder}/`;
             }
             const sample = LR.newSample({ label: q.label, speaker: q.speaker, frames: r.frames, lips: r.lips, quality: r.quality, file: q.file, author: LR.whoami(), drive });
-            if (LR.gh.connected()) { await LR.gh.putSample(sample); S.samples.push(sample); }
+            if (LR.gh.connected()) { await saveOrDiscard(sample, drive); S.samples.push(sample); }
             else offline.push(sample);
             q.status = "done"; ok++;
           } catch (e) {
@@ -710,6 +721,11 @@
   }
   $("gCamStart").addEventListener("click", startCam);
   document.addEventListener("visibilitychange", () => { if (document.hidden) stopCam(); });
+  // 離開或關閉頁面：不管有沒有在錄，都把鏡頭關掉
+  window.addEventListener("pagehide", () => {
+    G.stop = true;
+    if (G.stream) G.stream.getTracks().forEach((t) => t.stop());
+  });
 
   const CHECK_TEXT = {
     face: { ok: "臉在框內", off: "把臉移到框中間", bad: "找不到臉" },
@@ -826,6 +842,7 @@
     } finally {
       G.recording = false;
       $("gStop").hidden = true; updateRecBtn();
+      if (document.hidden) stopCam(); // 錄影中切走分頁時，錄完就關鏡頭
     }
   });
   $("gStop").addEventListener("click", () => { G.stop = true; });
@@ -925,7 +942,7 @@
         let drive = null;
         if ($("driveOpt").checked && LR.drive.enabled()) { fbBtn.textContent = "上傳影片中…"; drive = await LR.drive.upload(file, label, speaker); }
         const sample = LR.newSample({ label, speaker, frames: r.frames, lips: r.lips, quality: r.quality, file, author: LR.whoami(), drive });
-        await LR.gh.putSample(sample);
+        await saveOrDiscard(sample, drive);
         S.samples.push(sample); S.weights = null;
         fbBtn.disabled = true; fbBtn.textContent = "已加入";
         toast(`已把這段加入資料庫：「${label}」`, "good");
