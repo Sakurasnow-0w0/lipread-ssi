@@ -42,9 +42,9 @@
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6"/></svg>
     </div>
     <h2 id="emptyTitle">還沒有資料來源</h2>
-    <p id="emptyText">連線 GitHub 讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。</p>
+    <p id="emptyText">輸入團隊通關碼讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。</p>
     <div class="actions">
-      <button class="btn primary" id="emptyConnect">連線 GitHub</button>
+      <button class="btn primary" id="emptyConnect">輸入通關碼</button>
       <button class="btn" id="emptyLocal">讀取本機資料夾</button>
     </div>
   </section>
@@ -182,7 +182,7 @@
   "use strict";
   const { el, toast, pct } = LR;
   const $ = (id) => document.getElementById(id);
-  LR.mountHeader("report");
+  LR.mountHeader("report", { autoOpen: true });
   LR.initTooltip();
 
   const S = {
@@ -217,7 +217,7 @@
   // ───────── 讀資料 ─────────
   async function loadFromGitHub() {
     if (!LR.gh.connected()) {
-      empty("還沒有資料來源", "連線 GitHub 讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。");
+      empty("還沒有資料來源", "輸入團隊通關碼讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。");
       return;
     }
     if (S.busy) return;
@@ -229,7 +229,7 @@
       if (r.bad) toast(`有 ${r.bad} 筆樣本格式不正確，已略過`, "warn");
       S.samples = r.samples;
       S.fromGitHub = true;
-      S.source = `GitHub ${s.owner}/${s.repo}（${s.branch} 分支）`;
+      S.source = LR.mode() === "team" ? `團隊資料庫（${s.repo}）` : `GitHub ${s.owner}/${s.repo}（${s.branch} 分支）`;
       await analyze(0.25);
     } catch (e) {
       toast(e.message, "bad", 8000);
@@ -468,7 +468,7 @@
       const where = s.video.driveId ? `☁ ${s.video.folder ? s.video.folder + "/" : ""}${s.video.name}` : (s.video.name || "—");
       const view = el("button", { class: "btn ghost sm", type: "button", text: "檢視" });
       view.addEventListener("click", () => openSample(s));
-      const del = S.fromGitHub ? el("button", { class: "btn ghost sm danger", type: "button", text: "刪除" }) : null;
+      const del = S.fromGitHub && LR.gh.canDelete() ? el("button", { class: "btn ghost sm danger", type: "button", text: "刪除" }) : null;
       if (del) del.addEventListener("click", () => removeSample(s));
       return el("tr", null,
         el("td", { text: s.label }),
@@ -595,10 +595,11 @@
 
   async function removeSample(s) {
     const drive = s.video.driveId && LR.drive.url();
+    const separateTrash = drive && LR.mode() === "github"; // 通關碼模式由後端一併處理
     if (!confirm(`確定要刪除這段樣本？\n\n內容：${s.label}\n錄製者：${s.speaker || "—"}\n影片：${s.video.name || "—"}\n\n口型數據會從 GitHub 刪除（會留下刪除 commit，可從 git 歷史還原）。${drive ? "\n雲端影片會移到垃圾桶，30 天內可還原。" : ""}`)) return;
     try {
       await LR.gh.deleteSample(s);
-      if (drive) {
+      if (separateTrash) {
         try { await LR.drive.trash(s.video.driveId); }
         catch (e) { toast("口型數據已刪除，但雲端影片沒刪成功：" + e.message, "warn", 8000); }
       }
@@ -711,7 +712,7 @@
     if (files.length) loadLocal(files);
   });
   $("reload").addEventListener("click", () => {
-    if (!LR.gh.connected()) { toast("尚未連線 GitHub", "warn"); LR.openSettings(); return; }
+    if (!LR.gh.connected()) { toast("尚未登入", "warn"); LR.openSettings(); return; }
     loadFromGitHub();
   });
   $("linkVideos").addEventListener("click", () => $("videoFolder").click());

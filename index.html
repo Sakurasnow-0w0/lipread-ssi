@@ -163,7 +163,7 @@
   "use strict";
   const { el, toast } = LR;
   const $ = (id) => document.getElementById(id);
-  LR.mountHeader("input");
+  LR.mountHeader("input", { autoOpen: true });
   LR.initTooltip();
 
   const S = {
@@ -216,7 +216,7 @@
   function renderLibrary() {
     const on = LR.gh.connected();
     const ls = $("libStatus");
-    if (!on) { ls.textContent = "未連線 GitHub"; ls.className = "badge warn"; }
+    if (!on) { ls.textContent = "尚未登入"; ls.className = "badge warn"; }
     else if (S.loading) { ls.textContent = "讀取資料庫中…"; ls.className = "badge muted"; }
     else {
       ls.textContent = `資料庫 ${S.samples.length} 段・${counts("label").length} 種內容・${counts("speaker").length} 位錄製者`;
@@ -232,7 +232,7 @@
     const list = $("recentList");
     const recent = S.samples.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 6);
     if (!recent.length) {
-      list.replaceChildren(el("li", { class: "empty-line", text: on ? (S.loading ? "讀取中…" : "資料庫還沒有樣本") : "連線 GitHub 後會顯示" }));
+      list.replaceChildren(el("li", { class: "empty-line", text: on ? (S.loading ? "讀取中…" : "資料庫還沒有樣本") : "輸入通關碼後會顯示" }));
     } else {
       list.replaceChildren(...recent.map((s) => el("li", null,
         el("div", null, el("strong", { text: s.label }),
@@ -249,8 +249,8 @@
     const hasUrl = !!LR.drive.url();
     $("driveOpt").disabled = !LR.drive.enabled();
     if (!driveTouched || $("driveOpt").disabled) $("driveOpt").checked = LR.drive.enabled();
-    if (!hasUrl) { $("driveHint").textContent = "尚未設定影片上傳網址（右上角連線設定），影片不會存到雲端，只會存口型數據。"; }
-    else if (!LR.gh.connected()) $("driveHint").textContent = "連線 GitHub 後才能上傳到雲端。";
+    if (!hasUrl) { $("driveHint").textContent = "網站沒有設定後端服務網址，影片不會存到雲端。"; }
+    else if (!LR.gh.connected()) $("driveHint").textContent = "登入後才能上傳到雲端。";
     else $("driveHint").textContent = "";
   }
 
@@ -414,7 +414,7 @@
               drive = await LR.drive.upload(q.file, q.label, q.speaker);
               q.driveName = `${drive.folder}/`;
             }
-            const sample = LR.newSample({ label: q.label, speaker: q.speaker, frames: r.frames, lips: r.lips, quality: r.quality, file: q.file, author: LR.settings.get().login, drive });
+            const sample = LR.newSample({ label: q.label, speaker: q.speaker, frames: r.frames, lips: r.lips, quality: r.quality, file: q.file, author: LR.whoami(), drive });
             if (LR.gh.connected()) { await LR.gh.putSample(sample); S.samples.push(sample); }
             else offline.push(sample);
             q.status = "done"; ok++;
@@ -430,7 +430,7 @@
         S.weights = null;
         if (offline.length) {
           LR.download(`samples-${LR.newId()}.json`, JSON.stringify(offline));
-          toast(`尚未連線 GitHub，已把 ${offline.length} 段下載成 JSON 檔`, "warn");
+          toast(`尚未登入，已把 ${offline.length} 段下載成 JSON 檔`, "warn");
         }
         setBadge(S.stop ? "已停止" : fail ? "部分失敗" : "完成", S.stop || fail ? "warn" : "good");
         renderQueue(); renderLibrary();
@@ -511,7 +511,7 @@
             video, canvas: overlay, shouldStop: () => S.stop,
             onProgress: (p) => { onProgress(p); r.badge.textContent = `分析中 ${Math.round(p.i / p.n * 100)}%`; },
           });
-          const sample = LR.newSample({ label: r.label, speaker: r.speaker, frames: res.frames, lips: res.lips, quality: res.quality, file: r.file, author: LR.settings.get().login });
+          const sample = LR.newSample({ label: r.label, speaker: r.speaker, frames: res.frames, lips: res.lips, quality: res.quality, file: r.file, author: LR.whoami() });
           if (connected) { r.badge.textContent = "上傳中"; await LR.gh.putSample(sample); S.samples.push(sample); }
           else offline.push(sample);
           r.status = "done";
@@ -527,7 +527,7 @@
       S.weights = null;
       if (offline.length) {
         LR.download(`samples-${LR.newId()}.json`, JSON.stringify(offline));
-        toast(`尚未連線 GitHub，已把 ${offline.length} 段下載成 JSON 檔`, "warn");
+        toast(`尚未登入，已把 ${offline.length} 段下載成 JSON 檔`, "warn");
       }
       setBadge(S.stop ? "已停止" : "批次完成", S.stop ? "warn" : "good");
       renderBatch(); renderLibrary();
@@ -560,7 +560,7 @@
 
   $("runRecog").addEventListener("click", () => {
     if (!S.recog) { toast("請先選擇要辨識的影片", "warn"); return; }
-    if (!LR.gh.connected()) { toast("要先連線 GitHub 才能取得範本", "warn"); LR.openSettings(); return; }
+    if (!LR.gh.connected()) { toast("要先輸入通關碼才能取得範本", "warn"); LR.openSettings(); return; }
     if (new Set(S.samples.map((s) => s.label)).size < 2) { toast("資料庫至少要有 2 種內容才能辨識", "warn"); return; }
     guard(async () => {
       setBadge("分析中", "accent");
@@ -590,7 +590,7 @@
       guard(async () => {
         let drive = null;
         if ($("driveOpt").checked && LR.drive.enabled()) { fbBtn.textContent = "上傳影片中…"; drive = await LR.drive.upload(file, label, speaker); }
-        const sample = LR.newSample({ label, speaker, frames: r.frames, lips: r.lips, quality: r.quality, file, author: LR.settings.get().login, drive });
+        const sample = LR.newSample({ label, speaker, frames: r.frames, lips: r.lips, quality: r.quality, file, author: LR.whoami(), drive });
         await LR.gh.putSample(sample);
         S.samples.push(sample); S.weights = null;
         fbBtn.disabled = true; fbBtn.textContent = "已加入";

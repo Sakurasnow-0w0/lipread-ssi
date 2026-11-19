@@ -6,7 +6,7 @@
 
 | 頁面 | 用途 |
 |---|---|
-| 前台輸入 `index.html` | 一次上傳多段影片（手機可直接錄），勾選後批次標註「念的內容」→ 自動抓嘴唇節點 → 口型數據存 GitHub、影片存 Google 雲端並自動分資料夾；也能做辨識測試 |
+| 前台輸入 `index.html` | 輸入團隊通關碼即可使用；一次上傳多段影片（手機可直接錄），勾選後批次標註「念的內容」→ 自動抓嘴唇節點 → 口型數據存 GitHub、影片存 Google 雲端並自動分資料夾；也能做辨識測試 |
 | 後台報告 `report.html` | 準確率、混淆矩陣、嘴型重播比較、資料集覆蓋；可匯出 CSV／Markdown／PDF／原始 JSON |
 
 ## 資料放哪裡
@@ -23,49 +23,54 @@
   會痛/      會痛_B_20261119-153140.mp4
 ```
 
-## 每位開發者第一次使用
+## 怎麼開始用
 
-### 1. 取得資料 repo 權限
-擁有者到 `lipread-ssi-data` 的 **Settings → Collaborators** 把你加進來，你到信箱接受邀請。
+### 一般使用者（同學、志願者）：只要通關碼
+1. 打開 <https://sakurasnow-0w0.github.io/lipread-ssi/>
+2. 跳出的視窗填「你的名字或代號」和「團隊通關碼」（向專題負責人索取），按「開始使用」
+3. 就能上傳影片、做辨識測試、看後台報告。**不需要 GitHub 帳號**
 
-### 2. 建立自己的 GitHub token
-token 就像「只給這個網頁用的備用鑰匙」。網頁靠它代替你把口型數據寫進 GitHub。
+刪除資料需要另外的「管理員密碼」：在同一個視窗展開「我是管理員」填入。管理員密碼只記在當下的分頁，關掉就要重新輸入。
 
-到 <https://github.com/settings/personal-access-tokens/new> 建立 **Fine-grained token**，各欄位的意思：
+### 開發者：用自己的 GitHub token（選用）
+想用自己的 GitHub 身分直接寫入時，在視窗切到「開發者（GitHub token）」。token 建立方式：
 
 | 欄位 | 要選 | 意思 |
 |---|---|---|
-| Token name | 例如 `唇語網頁` | 只是名字，方便你之後認得 |
-| Expiration | 設到專題結束 | 時間到 token 自動失效，忘記刪也不會一直有效 |
-| Resource owner | `Sakurasnow-0w0` | 這把鑰匙要開「誰的」repo |
-| Repository access | **Only select repositories** → 只勾 `lipread-ssi-data` | 只能碰這一個 repo，你其他的 repo 都碰不到 |
-| Permissions → Repository permissions → **Contents** | **Read and write** | 可以讀、新增、刪除 repo 裡的檔案（網頁存樣本要用） |
-| 其他權限 | 全部不動 | Metadata 會自動變成 Read-only，這是必要的，其他都不需要 |
+| Expiration | 設到專題結束 | 時間到自動失效 |
+| Resource owner | `Sakurasnow-0w0` | 要開「誰的」repo |
+| Repository access | **Only select repositories** → 只勾 **`lipread-ssi-data`** | 只能碰這一個 repo（注意不是 `lipread-ssi`） |
+| Permissions → Contents | **Read and write** | 讀寫 repo 裡的檔案 |
+| 其他權限 | 全部不動 | Metadata 會自動變 Read-only，這是必要的 |
 
-按 Generate token，複製 `github_pat_` 開頭那串（只會顯示一次），貼到網頁右上角「未連線 GitHub」。
+建立網址：<https://github.com/settings/personal-access-tokens/new>
 
-> ⚠️ 待確認：如果 Resource owner 選不到 `Sakurasnow-0w0`（Fine-grained token 對「別人個人帳號底下、你只是協作者」的 repo 可能有限制），請擁有者把 `lipread-ssi-data` 轉移到一個免費的 GitHub Organization，大家的 Resource owner 改選那個組織。不建議改用 Classic token：它會拿到你所有 repo 的權限。
+## 後端服務設定（擁有者設定一次）
 
-**token 絕對不要寫進程式碼、不要 commit、不要貼到群組。** 外洩或手機遺失時，到上面網址把它刪掉重建即可。
+網站背後是一支 Google Apps Script（[`apps-script/Code.gs`](apps-script/Code.gs)），負責：
+- 把影片存進雲端硬碟，依「念的內容」自動建子資料夾
+- **用存在後端的 GitHub token** 把口型數據寫進私有 repo——token 不在網頁裡，任何人都看不到
+- 檢查通關碼／管理員密碼；密碼錯太多次會暫停一分鐘；全站每分鐘上傳次數有上限
 
-### 3. 打開網頁
-電腦或手機打開 <https://sakurasnow-0w0.github.io/lipread-ssi/>，連線 GitHub。第一次要下載臉部模型（約 18 MB）。
+### 第一次部署
+1. 雲端硬碟建一個影片資料夾，複製網址最後那串資料夾 ID；資料夾分享給隊友（「一般存取權」保持「限制」，影片有人臉）
+2. <https://script.google.com> → 新專案，貼上 `Code.gs`，把 `ROOT_FOLDER_ID` 改成資料夾 ID，存檔
+3. 左側齒輪「**專案設定**」→ 最下方「**指令碼屬性**」→ 新增三個：
 
-## Google 雲端上傳（擁有者設定一次）
+   | 屬性 | 值 |
+   |---|---|
+   | `GITHUB_TOKEN` | 專門給後端用的 Fine-grained token（只勾 `lipread-ssi-data`、Contents 讀寫） |
+   | `TEAM_CODE` | 團隊通關碼，給同學用 |
+   | `ADMIN_CODE` | 管理員密碼，只有你知道，不要跟通關碼一樣 |
 
-影片透過一支 Google Apps Script 存進你的雲端硬碟。它會先用上傳者的 GitHub token 確認「他是資料 repo 的協作者」才收檔案，所以不用另外設密碼，網址外流也不能亂傳。
+4. 函式選 `setupCheck` → 執行 → 授權（「Google 尚未驗證」→ 進階 → 前往）。執行記錄應顯示三個屬性「已設定」、資料 repo 連線「成功」
+5. 「部署 → 新增部署作業」→ 網頁應用程式；執行身分「**我**」、存取權「**所有人**」→ 複製網址，寫進 `assets/config.js` 的 `uploadUrl`
 
-1. 在 Google 雲端硬碟建一個資料夾，例如「唇語影片」。打開它，網址最後那串就是資料夾 ID：`https://drive.google.com/drive/folders/這一串`
-2. 資料夾按「共用」，把隊友的 Google 帳號加成「檢視者」或「編輯者」（**不要**設成「知道連結的任何人」，影片有人臉）
-3. 到 <https://script.google.com> → 新專案，把 [`apps-script/Code.gs`](apps-script/Code.gs) 整個貼上，把 `ROOT_FOLDER_ID` 改成上一步的 ID，存檔
-4. 上方函式選 `setupCheck` → 執行 → 依指示授權（會出現「Google 尚未驗證這個應用程式」，因為是你自己寫的，按「進階 → 前往」）
-5. 右上「部署 → 新增部署作業」→ 類型選 **網頁應用程式**：
-   - 執行身分：**我**
-   - 誰可以存取：**所有人**（實際權限由 GitHub token 把關）
-6. 複製「網頁應用程式網址」（`https://script.google.com/macros/s/…/exec`），貼到網頁右上角連線設定的「影片上傳網址」；或改 `assets/config.js` 的 `uploadUrl` 讓大家預設就有
-7. 之後修改 Code.gs，要用「管理部署作業 → 編輯 → 新版本」，網址才不會變
+### 修改程式或換密碼
+- 改 `Code.gs` 後：「部署 → **管理部署作業**」→ 鉛筆圖示 → 版本選「**新版本**」→ 部署。**網址不變**，網站不用改
+- 換通關碼／管理員密碼／token：直接改「指令碼屬性」即可，**不用重新部署**，立刻生效
 
-上傳後每段樣本會記下雲端檔案編號，後台報告可直接播放（觀看者要有那個資料夾的權限）。後台刪除樣本時，雲端影片會移到垃圾桶，30 天內可還原。
+上傳後每段樣本會記下雲端檔案編號，後台可直接播放（觀看者要有那個資料夾的權限）。刪除樣本時雲端影片會移到垃圾桶，30 天內可還原。
 
 ## 手機與 iPhone
 

@@ -390,6 +390,11 @@ select.input { padding: 7px 10px; font-size: 14px; width: auto; }
 .dialog-status { font-size: 13px; color: var(--ink-2); margin-top: 12px; min-height: 1.2em; }
 .dialog-status.bad { color: var(--bad-ink); }
 .dialog.video-dlg { width: min(720px, calc(100vw - 32px)); }
+.admin-box { margin-top: 4px; }
+.admin-box > summary { cursor: pointer; font-size: 13px; color: var(--ink-2); padding: 4px 0; }
+.admin-box[open] > summary { margin-bottom: 10px; }
+.dialog .seg { display: flex; }
+.dialog .seg button { flex: 1; }
 .dialog.video-dlg video { width: 100%; display: block; background: #000; border-radius: 10px; max-height: 70vh; }
 
 /* ───────── Toast 與 Tooltip ───────── */

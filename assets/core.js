@@ -565,22 +565,59 @@
       r.readAsDataURL(file);
     });
   }
+  // 團隊通關碼模式：不需要 GitHub 帳號，由後端服務代為存取 GitHub
+  const TEAM_KEY = "lr-team", ADMIN_KEY = "lr-admin";
+  LR.team = {
+    get() {
+      for (const area of ["sessionStorage", "localStorage"]) {
+        try { const o = JSON.parse(store.get(area, TEAM_KEY) || "null"); if (o && o.code) return { code: String(o.code), name: LR.cleanText(o.name, 30) }; } catch { /* 忽略壞掉的資料 */ }
+      }
+      return null;
+    },
+    remembered() { return !!store.get("localStorage", TEAM_KEY); },
+    save(code, name, remember) {
+      this.clear();
+      store.set(remember ? "localStorage" : "sessionStorage", TEAM_KEY, JSON.stringify({ code, name }));
+    },
+    clear() { store.del("localStorage", TEAM_KEY); store.del("sessionStorage", TEAM_KEY); store.del("sessionStorage", ADMIN_KEY); },
+    adminCode() { return store.get("sessionStorage", ADMIN_KEY) || ""; },
+    setAdmin(code) { if (code) store.set("sessionStorage", ADMIN_KEY, code); else store.del("sessionStorage", ADMIN_KEY); },
+  };
+  /** "github"：用自己的 token；"team"：用通關碼；null：未連線 */
+  LR.mode = () => {
+    if (LR.settings.token() && LR.settings.valid(LR.settings.get())) return "github";
+    if (LR.team.get() && LR.drive.url()) return "team";
+    return null;
+  };
+  LR.whoami = () => (LR.mode() === "github" ? LR.settings.get().login : (LR.team.get() || {}).name || "訪客");
+
   LR.drive = {
     url() { const u = LR.settings.get().uploadUrl; return UPLOAD_URL_RE.test(u || "") ? u : ""; },
     enabled() { return !!this.url() && LR.gh.connected(); },
-    async call(payload) {
+    authFor(action) {
+      if (LR.mode() === "github") return { token: LR.settings.token() };
+      const t = LR.team.get() || {};
+      const a = { code: t.code, name: t.name };
+      if ((action === "deleteSample" || action === "trash") && LR.team.adminCode()) a.adminCode = LR.team.adminCode();
+      return a;
+    },
+    async call(payload, auth) {
       const url = this.url();
-      if (!url) throw new Error("尚未設定影片上傳網址");
+      if (!url) throw new Error("尚未設定後端服務網址");
       let res;
       try {
         // 不加自訂 header（text/plain），避免 CORS 預檢；host 固定為 script.google.com
-        res = await fetch(url, { method: "POST", body: JSON.stringify(Object.assign({ token: LR.settings.token() }, payload)), redirect: "follow" });
+        res = await fetch(url, { method: "POST", body: JSON.stringify(Object.assign({}, auth || this.authFor(payload.action), payload)), redirect: "follow" });
       } catch {
-        throw new Error("連不到 Google 上傳服務，請檢查網路");
+        throw new Error("連不到後端服務，請檢查網路");
       }
       let j;
-      try { j = await res.json(); } catch { throw new Error("上傳服務回應格式錯誤（確認 Apps Script 有部署成「網頁應用程式」、存取權為「所有人」）"); }
-      if (!j || !j.ok) throw new Error("雲端上傳失敗：" + LR.cleanText(j && j.error, 200));
+      try { j = await res.json(); } catch { throw new Error("後端服務回應格式錯誤（確認 Apps Script 有部署成「網頁應用程式」、存取權為「所有人」）"); }
+      if (!j || !j.ok) {
+        const err = new Error(LR.cleanText(j && j.error, 200) || "後端服務發生錯誤");
+        if (/通關碼錯誤|管理員密碼錯誤|請先在網頁右上角/.test(err.message)) err.status = 401;
+        throw err;
+      }
       return j;
     },
     async ping() { return this.call({ action: "ping" }); },
@@ -695,8 +732,68 @@
 
   const blobCache = new Map();
 
+  function cachedBlob(sha) {
+    if (blobCache.has(sha)) return blobCache.get(sha);
+    const text = store.get("sessionStorage", "lr-blob:" + sha);
+    if (!text) return null;
+    try { const o = JSON.parse(text); blobCache.set(sha, o); return o; } catch { return null; }
+  }
+  function putBlob(sha, text) {
+    if (text.length > MAX_SAMPLE_BYTES) throw new Error("樣本檔太大");
+    const o = JSON.parse(text);
+    blobCache.set(sha, o);
+    store.set("sessionStorage", "lr-blob:" + sha, text);
+    return o;
+  }
+
+  // 通關碼模式：經後端服務讀寫
+  const viaTeam = {
+    async loadSamples(onProgress) {
+      const l = await LR.drive.call({ action: "list" });
+      const entries = (l.entries || []).filter((e) => SAMPLE_PATH_RE.test(e.path || "") && /^[0-9a-f]{40}$/.test(e.sha || ""));
+      const need = entries.filter((e) => !cachedBlob(e.sha)).map((e) => e.sha);
+      let done = entries.length - need.length;
+      if (onProgress) onProgress(done, entries.length);
+      const chunks = [];
+      for (let i = 0; i < need.length; i += 25) chunks.push(need.slice(i, i + 25));
+      const worker = async () => {
+        while (chunks.length) {
+          const shas = chunks.shift();
+          const r = await LR.drive.call({ action: "blobs", shas });
+          for (const sha of shas) {
+            const b64 = r.blobs && r.blobs[sha];
+            if (b64) { try { putBlob(sha, b64decodeUtf8(b64)); } catch { /* 壞檔略過 */ } }
+          }
+          done += shas.length;
+          if (onProgress) onProgress(done, entries.length);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
+      const out = [];
+      let bad = 0;
+      for (const e of entries) {
+        const s = LR.validateSample(cachedBlob(e.sha));
+        if (s) out.push(Object.assign(s, { _path: e.path, _sha: e.sha })); else bad++;
+      }
+      out.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+      return { samples: out, bad, truncated: !!l.truncated };
+    },
+    async putSample(sample) {
+      const r = await LR.drive.call({ action: "saveSample", sample });
+      return Object.assign(sample, {
+        _path: r.path, _sha: r.sha,
+        createdBy: LR.cleanText(r.createdBy, 60) || sample.createdBy,
+        createdAt: r.createdAt || sample.createdAt,
+      });
+    },
+    async deleteSample(sample) {
+      return LR.drive.call({ action: "deleteSample", path: sample._path, sha: sample._sha, driveId: sample.video && sample.video.driveId });
+    },
+  };
+
   LR.gh = {
-    connected() { return !!LR.settings.token() && LR.settings.valid(LR.settings.get()); },
+    connected() { return !!LR.mode(); },
+    canDelete() { const m = LR.mode(); return m === "github" || (m === "team" && !!LR.team.adminCode()); },
 
     async request(path, { method = "GET", body, settings, token } = {}) {
       const s = settings || LR.settings.get();
@@ -758,23 +855,15 @@
     },
 
     async readBlob(sha) {
-      if (blobCache.has(sha)) return blobCache.get(sha);
-      const key = "lr-blob:" + sha;
-      const cached = store.get("sessionStorage", key);
-      if (cached) {
-        try { const o = JSON.parse(cached); blobCache.set(sha, o); return o; } catch { /* 快取壞掉就重抓 */ }
-      }
+      const hit = cachedBlob(sha);
+      if (hit) return hit;
       const b = await this.request(`git/blobs/${sha}`);
-      const text = b64decodeUtf8(b.content || "");
-      if (text.length > MAX_SAMPLE_BYTES) throw new Error("樣本檔太大");
-      const o = JSON.parse(text);
-      blobCache.set(sha, o);
-      store.set("sessionStorage", key, text);
-      return o;
+      return putBlob(sha, b64decodeUtf8(b.content || ""));
     },
 
-    /** 讀出 repo 裡全部樣本。 */
+    /** 讀出全部樣本。 */
     async loadSamples(onProgress) {
+      if (LR.mode() === "team") return viaTeam.loadSamples(onProgress);
       const { entries, truncated } = await this.listEntries();
       const out = [];
       let done = 0, bad = 0;
@@ -800,6 +889,7 @@
     },
 
     async putSample(sample) {
+      if (LR.mode() === "team") return viaTeam.putSample(sample);
       const s = LR.settings.get();
       const path = `data/samples/${sample.id}.json`;
       if (!SAMPLE_PATH_RE.test(path)) throw new Error("樣本編號格式不正確");
@@ -820,6 +910,7 @@
     },
 
     async deleteSample(sample) {
+      if (LR.mode() === "team") return viaTeam.deleteSample(sample);
       const s = LR.settings.get();
       if (!SAMPLE_PATH_RE.test(sample._path || "") || !/^[0-9a-f]{40}$/.test(sample._sha || "")) throw new Error("這筆樣本不在 GitHub 上");
       await this.request(`contents/${sample._path}`, {
@@ -830,17 +921,17 @@
   };
 
   // ───────────────────────── 頂部導覽列與連線設定 ─────────────────────────
-  LR.mountHeader = function (active) {
+  LR.mountHeader = function (active, opts) {
     const bar = document.getElementById("appbar");
     const chip = LR.el("button", { class: "conn", type: "button" });
     const renderChip = () => {
-      const s = LR.settings.get(), on = LR.gh.connected();
-      chip.classList.toggle("on", on);
-      chip.replaceChildren(
-        LR.el("span", { class: "conn-dot", "aria-hidden": "true" }),
-        LR.el("span", { class: "conn-text", text: on ? `${s.owner}/${s.repo}` : "未連線 GitHub" })
-      );
-      chip.title = on ? `已連線（${s.login || "?"}），點擊修改設定` : "點擊設定 GitHub 連線";
+      const s = LR.settings.get(), mode = LR.mode();
+      chip.classList.toggle("on", !!mode);
+      const text = mode === "github" ? `${s.owner}/${s.repo}`
+        : mode === "team" ? `${LR.team.adminCode() ? "管理員" : "團隊"}・${LR.whoami()}`
+        : "輸入通關碼";
+      chip.replaceChildren(LR.el("span", { class: "conn-dot", "aria-hidden": "true" }), LR.el("span", { class: "conn-text", text }));
+      chip.title = mode ? "已連線，點擊修改設定" : "點擊輸入團隊通關碼";
     };
     const link = (href, key, text) => LR.el("a", { href, class: active === key ? "active" : null, "aria-current": active === key ? "page" : null, text });
     bar.append(
@@ -859,6 +950,7 @@
     const dlg = buildSettingsDialog();
     document.body.append(dlg);
     chip.addEventListener("click", () => LR.openSettings());
+    if (opts && opts.autoOpen && !LR.mode()) setTimeout(() => LR.openSettings(), 300);
   };
 
   function mouthIcon() {
@@ -879,86 +971,146 @@
   }
 
   function buildSettingsDialog() {
-    const f = (id, label, attrs, help) =>
-      LR.el("div", { class: "field" }, LR.el("label", { for: id, text: label }), LR.el("input", Object.assign({ id, class: "input" }, attrs)), help ? LR.el("p", { class: "help", text: help }) : null);
-    const status = LR.el("p", { class: "dialog-status", role: "status" });
-    const remember = LR.el("input", { type: "checkbox", id: "setRemember" });
-    const tokenLink = LR.el("a", { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener noreferrer", text: "建立 token" });
-    const btnSave = LR.el("button", { class: "btn primary", type: "submit", text: "連線並儲存" });
-    const btnOff = LR.el("button", { class: "btn ghost danger", type: "button", text: "中斷連線" });
-    const btnCancel = LR.el("button", { class: "btn ghost", type: "button", text: "取消" });
-    const form = LR.el("form", { class: "dialog-body", method: "dialog" },
-      LR.el("div", { class: "dialog-h" }, LR.el("h2", { id: "setTitle", text: "GitHub 連線設定" }), LR.el("p", { class: "help", text: "每位開發者用自己的 token。token 只存在這個瀏覽器，不會寫進程式碼或 repo。" })),
-      LR.el("div", { class: "field-row" },
-        f("setOwner", "帳號／組織", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
-        f("setRepo", "Repo 名稱", { autocomplete: "off", spellcheck: "false", maxlength: "100" })
+    const E = LR.el;
+    const field = (id, label, attrs, help) =>
+      E("div", { class: "field" }, E("label", { for: id, text: label }), E("input", Object.assign({ id, class: "input" }, attrs)), help ? E("p", { class: "help", text: help }) : null);
+    const status = E("p", { class: "dialog-status", role: "status" });
+    const btnSave = E("button", { class: "btn primary", type: "submit", text: "開始使用" });
+    const btnOff = E("button", { class: "btn ghost danger", type: "button", text: "登出" });
+    const btnCancel = E("button", { class: "btn ghost", type: "button", text: "取消" });
+    const segTeam = E("button", { type: "button", role: "tab", "data-m": "team", text: "團隊通關碼" });
+    const segDev = E("button", { type: "button", role: "tab", "data-m": "github", text: "開發者（GitHub token）" });
+
+    // 通關碼
+    const rememberTeam = E("input", { type: "checkbox", id: "setTeamRemember", checked: true });
+    const teamBox = E("div", null,
+      field("setName", "你的名字或代號", { autocomplete: "nickname", maxlength: "30", placeholder: "例如：小明、A" }, "會記在上傳紀錄裡，方便知道是誰錄的。"),
+      field("setCode", "團隊通關碼", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100", placeholder: "向專題負責人索取" }),
+      E("details", { class: "admin-box" },
+        E("summary", { text: "我是管理員（需要刪除資料）" }),
+        field("setAdmin", "管理員密碼", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100" }, "只會記在這次開啟的分頁，關掉就要重新輸入。")
       ),
-      f("setBranch", "分支", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
-      LR.el("div", { class: "field" },
-        LR.el("label", { for: "setToken" }, "Personal access token　", tokenLink),
-        LR.el("input", { id: "setToken", class: "input mono", type: "password", autocomplete: "off", spellcheck: "false", placeholder: "github_pat_…" }),
-        LR.el("p", { class: "help", text: "建議用 Fine-grained token：只勾這個 repo，權限 Contents 設為 Read and write，設定到期日。已連線時留空表示沿用原本的 token。" })
-      ),
-      LR.el("label", { class: "check" }, remember, LR.el("span", { text: "在這台電腦記住 token（公用電腦請勿勾選）" })),
-      LR.el("div", { class: "field", style: "margin-top:16px" },
-        LR.el("label", { for: "setUpload", text: "影片上傳網址（Google Apps Script，選填）" }),
-        LR.el("input", { id: "setUpload", class: "input mono", autocomplete: "off", spellcheck: "false", placeholder: "https://script.google.com/macros/s/…/exec" }),
-        LR.el("p", { class: "help", text: "設定後，前台可以把影片直接存到 Google 雲端硬碟，並依念的內容自動分資料夾。" })
-      ),
-      status,
-      LR.el("div", { class: "dialog-actions" }, btnOff, LR.el("span", { class: "spacer" }), btnCancel, btnSave)
+      E("label", { class: "check", style: "margin-top:12px" }, rememberTeam, E("span", { text: "在這台裝置記住通關碼（公用電腦請勿勾選）" }))
     );
-    const dlg = LR.el("dialog", { class: "dialog", "aria-labelledby": "setTitle" }, form);
+
+    // 開發者
+    const rememberDev = E("input", { type: "checkbox", id: "setRemember" });
+    const tokenLink = E("a", { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener noreferrer", text: "建立 token" });
+    const devBox = E("div", null,
+      E("div", { class: "field-row" },
+        field("setOwner", "帳號／組織", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
+        field("setRepo", "資料 Repo", { autocomplete: "off", spellcheck: "false", maxlength: "100" })),
+      field("setBranch", "分支", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
+      E("div", { class: "field" },
+        E("label", { for: "setToken" }, "Personal access token　", tokenLink),
+        E("input", { id: "setToken", class: "input mono", type: "password", autocomplete: "off", spellcheck: "false", placeholder: "github_pat_…" }),
+        E("p", { class: "help", text: "Fine-grained token：只勾資料 repo，Contents 設為 Read and write。已連線時留空表示沿用原本的 token。" })),
+      E("label", { class: "check" }, rememberDev, E("span", { text: "在這台電腦記住 token（公用電腦請勿勾選）" }))
+    );
+
+    const advBox = E("details", { class: "admin-box", style: "margin-top:14px" },
+      E("summary", { text: "進階：後端服務網址" }),
+      field("setUpload", "Google Apps Script 網址", { class: "input mono", autocomplete: "off", spellcheck: "false", placeholder: "https://script.google.com/macros/s/…/exec" }, "通常不用改，網站已經預設好了。"));
+
+    const form = E("form", { class: "dialog-body", method: "dialog" },
+      E("div", { class: "dialog-h" }, E("h2", { id: "setTitle", text: "開始使用" }),
+        E("p", { class: "help", text: "輸入團隊通關碼就能上傳影片、看報告，不需要 GitHub 帳號。" })),
+      E("div", { class: "seg", role: "tablist", style: "margin-bottom:16px" }, segTeam, segDev),
+      teamBox, devBox, advBox, status,
+      E("div", { class: "dialog-actions" }, btnOff, E("span", { class: "spacer" }), btnCancel, btnSave));
+    const dlg = E("dialog", { class: "dialog", "aria-labelledby": "setTitle" }, form);
+    const $f = (id) => form.querySelector("#" + id);
+
+    let tab = "team";
+    const setTab = (m) => {
+      tab = m;
+      segTeam.setAttribute("aria-selected", String(m === "team"));
+      segDev.setAttribute("aria-selected", String(m === "github"));
+      teamBox.hidden = m !== "team";
+      devBox.hidden = m !== "github";
+      btnSave.textContent = m === "team" ? "開始使用" : "連線並儲存";
+      status.textContent = "";
+    };
+    segTeam.addEventListener("click", () => setTab("team"));
+    segDev.addEventListener("click", () => setTab("github"));
+    const fail = (msg) => { status.textContent = msg; status.className = "dialog-status bad"; };
 
     LR.openSettings = () => {
-      const s = LR.settings.get();
-      form.querySelector("#setOwner").value = s.owner;
-      form.querySelector("#setRepo").value = s.repo;
-      form.querySelector("#setBranch").value = s.branch;
-      form.querySelector("#setToken").value = "";
-      form.querySelector("#setUpload").value = s.uploadUrl || "";
-      remember.checked = LR.settings.remembered();
-      btnOff.hidden = !LR.gh.connected();
-      status.textContent = "";
+      const s = LR.settings.get(), t = LR.team.get();
+      $f("setOwner").value = s.owner;
+      $f("setRepo").value = s.repo;
+      $f("setBranch").value = s.branch;
+      $f("setToken").value = "";
+      $f("setUpload").value = s.uploadUrl || "";
+      $f("setName").value = t ? t.name : "";
+      $f("setCode").value = "";
+      $f("setCode").placeholder = t ? "已記住（留空沿用）" : "向專題負責人索取";
+      $f("setAdmin").value = "";
+      rememberDev.checked = LR.settings.remembered();
+      rememberTeam.checked = t ? LR.team.remembered() : true;
+      btnOff.hidden = !LR.mode();
       status.className = "dialog-status";
+      setTab(LR.mode() === "github" ? "github" : "team");
       dlg.showModal();
     };
     btnCancel.addEventListener("click", () => dlg.close());
     btnOff.addEventListener("click", () => {
       LR.settings.disconnect();
+      LR.team.clear();
       dlg.close();
       LR.events.dispatchEvent(new Event("connection"));
-      LR.toast("已中斷 GitHub 連線，token 已從這個瀏覽器移除", "info");
+      LR.toast("已登出，通關碼與 token 已從這個瀏覽器移除", "info");
     });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const s = {
-        owner: form.querySelector("#setOwner").value.trim(),
-        repo: form.querySelector("#setRepo").value.trim(),
-        branch: form.querySelector("#setBranch").value.trim() || "main",
-        uploadUrl: form.querySelector("#setUpload").value.trim(),
-      };
-      const token = form.querySelector("#setToken").value.trim() || LR.settings.token();
-      if (!LR.settings.valid(s)) { status.textContent = "帳號、repo 或分支名稱只能用英數字和 . _ -"; status.className = "dialog-status bad"; return; }
-      if (!LR.settings.validUploadUrl(s.uploadUrl)) { status.textContent = "上傳網址格式不對，應該是 https://script.google.com/macros/s/…/exec"; status.className = "dialog-status bad"; return; }
-      if (!token) { status.textContent = "請貼上 token"; status.className = "dialog-status bad"; return; }
+      const cur = LR.settings.get();
+      const uploadUrl = $f("setUpload").value.trim();
+      if (!LR.settings.validUploadUrl(uploadUrl)) return fail("後端服務網址格式不對，應該是 https://script.google.com/macros/s/…/exec");
       btnSave.disabled = true;
       status.textContent = "連線測試中…";
       status.className = "dialog-status";
       try {
-        const info = await LR.gh.connect(s, token);
-        LR.settings.save(Object.assign(s, { login: info.login }), token, remember.checked);
-        dlg.close();
-        LR.events.dispatchEvent(new Event("connection"));
-        LR.toast(`已連線 ${s.owner}/${s.repo}（${info.login}）${info.isPrivate ? "" : "。注意：這是公開 repo"}`, info.isPrivate ? "good" : "warn");
-        if (s.uploadUrl) {
-          LR.drive.ping()
-            .then(() => LR.toast("Google 雲端上傳服務連線成功", "good"))
-            .catch((err) => LR.toast(err.message, "warn", 8000));
+        if (tab === "team") {
+          const name = LR.cleanText($f("setName").value, 30);
+          const code = $f("setCode").value.trim() || (LR.team.get() || {}).code || "";
+          const admin = $f("setAdmin").value.trim();
+          if (!code) return fail("請輸入團隊通關碼");
+          if (!uploadUrl) return fail("網站沒有設定後端服務網址，請聯絡專題負責人");
+          LR.settings.save(Object.assign({}, cur, { uploadUrl }), LR.settings.token(), LR.settings.remembered());
+          const r = await LR.drive.call({ action: "ping" }, { code, name });
+          if (admin) await LR.drive.call({ action: "ping" }, { adminCode: admin, name });
+          // 通關碼模式不使用 GitHub token，避免兩種身分混用
+          LR.settings.disconnect();
+          LR.team.save(code, name, rememberTeam.checked);
+          LR.team.setAdmin(admin);
+          dlg.close();
+          LR.events.dispatchEvent(new Event("connection"));
+          LR.toast(`歡迎${name ? "，" + name : ""}！${admin ? "已用管理員身分登入" : "可以開始上傳了"}`, "good");
+          void r;
+        } else {
+          const s = {
+            owner: $f("setOwner").value.trim(),
+            repo: $f("setRepo").value.trim(),
+            branch: $f("setBranch").value.trim() || "main",
+            uploadUrl,
+          };
+          const token = $f("setToken").value.trim() || LR.settings.token();
+          if (!LR.settings.valid(s)) return fail("帳號、repo 或分支名稱只能用英數字和 . _ -");
+          if (!token) return fail("請貼上 token");
+          const info = await LR.gh.connect(s, token);
+          LR.settings.save(Object.assign(s, { login: info.login }), token, rememberDev.checked);
+          dlg.close();
+          LR.events.dispatchEvent(new Event("connection"));
+          LR.toast(`已連線 ${s.owner}/${s.repo}（${info.login}）${info.isPrivate ? "" : "。注意：這是公開 repo"}`, info.isPrivate ? "good" : "warn");
+          if (s.uploadUrl) {
+            LR.drive.ping()
+              .then(() => LR.toast("Google 雲端上傳服務連線成功", "good"))
+              .catch((err) => LR.toast(err.message, "warn", 8000));
+          }
         }
       } catch (err) {
-        status.textContent = err.message;
-        status.className = "dialog-status bad";
+        fail(err.message);
       } finally {
         btnSave.disabled = false;
       }
