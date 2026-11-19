@@ -188,12 +188,14 @@
   /**
    * 網站風格的確認視窗（取代瀏覽器內建的 confirm／prompt：樣式一致，App 內建瀏覽器也不會被略過）。
    * 回傳 Promise<boolean>。typeToConfirm：要使用者照打一次這段文字才能按確定。
+   * recommendCancel：建議的做法是「取消」那一邊時（例如「先調整」），把它做成主按鈕、預設焦點也放在它上面。
    */
-  LR.confirm = function ({ title, body, ok = "確定", cancel = "取消", danger = false, typeToConfirm = "" } = {}) {
+  LR.confirm = function ({ title, body, ok = "確定", cancel = "取消", danger = false, typeToConfirm = "", recommendCancel = false } = {}) {
     const E = LR.el;
     return new Promise((resolve) => {
       const lines = Array.isArray(body) ? body : String(body || "").split("\n");
-      const okBtn = E("button", { class: "btn " + (danger ? "danger-solid" : "primary"), type: "submit", value: "ok", text: ok });
+      const okBtn = E("button", { class: "btn " + (danger ? "danger-solid" : recommendCancel ? "" : "primary"), type: "submit", value: "ok", text: ok });
+      const cancelBtn = E("button", { class: "btn " + (recommendCancel ? "primary" : "ghost"), type: "submit", value: "cancel", text: cancel });
       const input = typeToConfirm ? E("input", { class: "input", autocomplete: "off", spellcheck: "false", "aria-label": `請輸入「${typeToConfirm}」` }) : null;
       if (input) {
         okBtn.disabled = true;
@@ -206,12 +208,12 @@
         E("div", { class: "confirm-body" }, lines.filter((l) => l !== "").map((l) => E("p", { text: l }))),
         input ? E("div", { class: "field", style: "margin-top:14px" }, E("label", { text: `請輸入「${typeToConfirm}」確認` }), input) : null,
         E("div", { class: "dialog-actions" }, E("span", { class: "spacer" }),
-          E("button", { class: "btn ghost", type: "submit", value: "cancel", text: cancel }), okBtn));
+          ...(recommendCancel ? [okBtn, cancelBtn] : [cancelBtn, okBtn])));
       const dlg = E("dialog", { class: "dialog confirm", "aria-labelledby": "lrConfirmTitle" }, form);
       document.body.append(dlg);
       dlg.addEventListener("close", () => { resolve(dlg.returnValue === "ok"); dlg.remove(); });
       dlg.showModal();
-      (input || okBtn).focus();
+      (input || (recommendCancel ? cancelBtn : okBtn)).focus();
     });
   };
 

@@ -589,7 +589,7 @@
 
   // ───────── 引導錄影 ─────────
   const PHRASES = Array.isArray(window.LR_PHRASES) ? window.LR_PHRASES : [];
-  const G = { phrase: "", stream: null, timer: 0, recording: false, stop: false, takes: [], refPlayer: null, nextTake: 1 };
+  const G = { phrase: "", stream: null, timer: 0, recording: false, stop: false, takes: [], refPlayer: null, nextTake: 1, failed: false };
   const REC_MIME = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
     .find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
   const cam = $("gCam");
@@ -631,6 +631,7 @@
   function setPhrase(p, fromUser) {
     const prev = G.phrase;
     G.phrase = LR.cleanText(p, LR.MAX_LABEL);
+    G.failed = false; // 換了句子，「重錄這一句」就不成立了
     const n = labelCounts().get(G.phrase) || 0;
     $("gPhrase").textContent = G.phrase || "—";
     if (G.phrase && G.phrase !== prev) { const big = $("gPhrase"); big.classList.remove("stamp"); void big.offsetWidth; big.classList.add("stamp"); }
@@ -648,7 +649,7 @@
     } else if (G.refPlayer) G.refPlayer.pause();
     updateRecBtn();
     // 選好句子就帶到下一步（手機上鏡頭在很下面，不捲過去根本看不到；U3）
-    if (fromUser && G.phrase && !G.recording) setTimeout(() => $(G.stream ? "gCamBox" : "gStep2").scrollIntoView({ behavior: smooth(), block: G.stream ? "center" : "start" }), 380);
+    if (fromUser && G.phrase && !G.recording) setTimeout(() => (G.stream ? scrollToCam() : $("gStep2").scrollIntoView({ behavior: smooth(), block: "start" })), 380);
   }
 
   // 隨機抽句：越少人錄過的越容易被抽到
@@ -719,7 +720,8 @@
     updateRecBtn();
     return true;
   }
-  function scrollToCam() { $("gCamBox").scrollIntoView({ behavior: smooth(), block: "center" }); }
+  // 鏡頭框頂端對齊畫面上緣（留 scroll-margin-top），讓鏡頭＋下面四項檢查一起落在底部引導列上方（M1）
+  function scrollToCam() { $("gCamBox").scrollIntoView({ behavior: smooth(), block: "start" }); }
 
   // 嘴巴特寫畫面：跟著嘴巴位置（平滑移動）裁出 4:3 的區域
   function updateBox(b) {
@@ -804,14 +806,18 @@
   function coachState() {
     const n = Number($("gRepeat").value) || 1;
     const speaker = LR.cleanText($("gSpeaker").value, LR.MAX_SPEAKER);
-    if (G.recording) return { step: 3, title: "錄影中，看著畫面上的字念", sub: G.progress || "", btn: ["停止", "stop", "", () => { G.stop = true; }] };
+    if (G.recording) return { step: 3, title: "錄影中，看著畫面上的字念", sub: G.progress || "", btn: ["停止", "stop", "stop", () => { G.stop = true; }] };
     if (!G.phrase) return { step: 1, title: "第 1 步：選一句要念的話", sub: "點上面任一句，或讓系統挑最少人錄的", btn: ["隨機抽一句", "shuffle", "primary", () => $("gRandom").click()] };
     if (!G.stream) return { step: 2, title: "第 2 步：開啟鏡頭", sub: `接下來要念「${G.phrase}」`, btn: ["開啟鏡頭", "camera", "primary", async () => { if (await startCam()) scrollToCam(); }] };
     if (G.takes.length) return { step: 3, title: `錄好 ${G.takes.length} 段了`, sub: "確認沒問題就上傳；也可以換一句繼續錄", btn: [`上傳 ${G.takes.length} 段`, "upload", "primary", () => $("gUpload").click()] };
     if (!speaker) return { step: 3, title: "填一下錄製者代號", sub: "同一個人每次都用同一個代號，報告才分得出是誰", btn: ["去填代號", "pen", "primary", () => { $("gSpeaker").scrollIntoView({ behavior: smooth(), block: "center" }); $("gSpeaker").focus(); }] };
-    if (!G.ready) return { step: 2, title: "把臉放進橢圓框裡", sub: (G.issues && G.issues.length ? G.issues.join("・") : "框線變成綠色就可以錄了"), btn: ["仍要開始錄", "rec", "", recClick] };
-    return { step: 3, title: "準備好了！", sub: `「${G.phrase}」連續錄 ${n} 次，倒數 3 秒後開始`, btn: ["開始錄", "rec", "rec", recClick] };
+    // 還沒對準：這一步要做的是「調整姿勢」，不是按按鈕。所以只給一個低調的「略過檢查」，不要用大按鈕催人跳過（M3）
+    if (!G.ready) return { step: 2, title: G.failed ? "剛剛那段沒錄好，先把臉放進框裡" : "把臉放進橢圓框裡", sub: (G.issues && G.issues.length ? G.issues.join("・") : "框線變成綠色就可以錄了"), btn: ["略過檢查", "rec", "skip", recClick] };
+    return { step: 3, title: G.failed ? "對準了，再錄一次" : "準備好了！", sub: `「${G.phrase}」連續錄 ${n} 次，倒數 3 秒後開始`, btn: [G.failed ? "重錄這一句" : "開始錄", "rec", "rec", recClick] };
   }
+  // 按鈕的意思一換（例如「停止」→「重錄」），先停用一下，避免手指剛好按到新的動作（M2）
+  const COACH_LOCK_MS = 700;
+  let coachLock = 0;
   function updateCoach() {
     if (!$("gCoach")) return;
     const st = coachState();
@@ -832,10 +838,19 @@
     msg.classList.remove("swap"); void msg.offsetWidth; msg.classList.add("swap");
     const [text, icon, cls, act] = st.btn;
     const b = $("gCoachBtn");
+    // 用圖示名稱當「動作種類」：略過檢查／開始錄／重錄都是同一個 recClick，彼此切換不必鎖；
+    // 錄影中每段進度文字會變，但動作一直是「停止」，也不鎖
+    const changed = b.dataset.act !== undefined && b.dataset.act !== icon;
+    b.dataset.act = icon;
     b.className = "btn " + cls;
     b.replaceChildren(LR.icon(icon, 16), el("span", { text }));
     b.onclick = act;
-    b.disabled = S.busy && !G.recording;
+    const enable = () => { b.disabled = S.busy && !G.recording; b.classList.remove("locked"); };
+    if (changed) {
+      const token = ++coachLock;
+      b.disabled = true; b.classList.add("locked");
+      setTimeout(() => { if (token === coachLock) enable(); }, COACH_LOCK_MS);
+    } else if (!b.classList.contains("locked")) enable();
   }
 
   // ───────── 錄影流程 ─────────
@@ -917,13 +932,13 @@
       const go = await LR.confirm({
         title: "鏡頭還沒對準",
         body: [`目前：${issues}。`, "這樣錄的口型很可能抓不到。建議等橢圓框變成綠色再錄。"],
-        ok: "仍要開始", cancel: "先調整",
+        ok: "仍要開始", cancel: "先調整", recommendCancel: true,
       });
       if (!go) return;
     }
     LR.store.set("localStorage", "lr-speaker", speaker);
     const n = Number($("gRepeat").value) || 1;
-    G.recording = true; G.stop = false;
+    G.recording = true; G.stop = false; G.failed = false;
     $("gStop").hidden = false; $("gCamBox").classList.add("recording");
     cue("");
     updateRecBtn();
@@ -944,6 +959,7 @@
         if (i < n - 1 && !G.stop) { cue(`休息一下・下一次 ${i + 2} / ${n}`, "rest", 1300); await LR.sleep(1300); }
       }
       if (fail) {
+        G.failed = true;
         cueFail(`第 ${fail.i + 1} 段沒錄好，已暫停`, fail.msg);
       } else {
         cueDone(G.stop ? `已停止・錄好 ${made} 段` : `完成！錄好 ${made} 段`);

@@ -8,7 +8,7 @@
   --surface-2: #f2ebe0;
   --ink: #1e1a16;
   --ink-2: #554c43;
-  --muted: #776d62;
+  --muted: #6b6155; /* 在所有淺色底（紙色、卡片、淺朱紅、淺靛藍）上都 ≥ 5:1 */
   --line: #e5dccd;
   --line-strong: #cbbda9;
   --ring: rgba(30, 26, 22, 0.07);
@@ -16,8 +16,9 @@
   --accent-hover: #1b3963;
   --accent-ink: #ffffff;
   --accent-soft: #e5ebf4;
-  --brand: #d4482c;
-  --brand-ink: #b23a20;
+  --brand: #cc4329;   /* 色塊用；上面放白字 4.77:1 */
+  --on-brand: #ffffff; /* 放在 --brand 色塊上的文字 */
+  --brand-ink: #b23a20; /* 朱紅「文字」一律用這個 */
   --brand-soft: #fbe5dd;
   --series-1: #23477e;
   --good: #2e7d46;
@@ -45,10 +46,10 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --page: #14120f; --surface: #1e1b17; --surface-2: #28241f;
-    --ink: #f2ece2; --ink-2: #cbc1b3; --muted: #9b9083;
+    --ink: #f2ece2; --ink-2: #cbc1b3; --muted: #aca193;
     --line: #322d27; --line-strong: #463f36; --ring: rgba(255, 245, 230, 0.07);
     --accent: #93b4ea; --accent-hover: #adc6f0; --accent-ink: #0f1622; --accent-soft: rgba(147, 180, 234, 0.15);
-    --brand: #ff7a5a; --brand-ink: #ff9a80; --brand-soft: rgba(255, 122, 90, 0.14);
+    --brand: #ff7a5a; --on-brand: #1e0c06; --brand-ink: #ff9a80; --brand-soft: rgba(255, 122, 90, 0.14);
     --series-1: #93b4ea;
     --good: #4fb36b; --good-ink: #6cc786; --good-soft: rgba(79, 179, 107, 0.15);
     --warn-ink: #f0b445; --warn-soft: rgba(240, 180, 69, 0.13);
@@ -811,7 +812,7 @@ body.locked .site-foot { visibility: visible; }
 [data-icon] { display: inline-flex; align-items: center; gap: 6px; }
 
 /* 頂部列：朱紅品牌章＋底線式導覽 */
-.brand-mark { background: var(--brand); color: #fff; border-radius: 9px; transform: rotate(-4deg); box-shadow: 0 2px 0 color-mix(in srgb, var(--brand) 60%, #000); transition: transform .3s var(--spring); }
+.brand-mark { background: var(--brand); color: var(--on-brand); border-radius: 9px; transform: rotate(-4deg); box-shadow: 0 2px 0 color-mix(in srgb, var(--brand) 60%, #000); transition: transform .3s var(--spring); }
 .brand:hover .brand-mark { transform: rotate(3deg) scale(1.06); }
 .brand-text strong { font-size: 16px; font-weight: 800; letter-spacing: .02em; }
 .brand-text small { font-size: 11.5px; letter-spacing: .04em; }
@@ -835,7 +836,7 @@ body.locked .site-foot { visibility: visible; }
 .btn:active:not(:disabled) { transform: translateY(1px); transition-duration: .05s; }
 .btn.primary { box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, #000); }
 .btn.primary:hover:not(:disabled) { box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 55%, #000); }
-.btn.rec { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 2px 0 color-mix(in srgb, var(--brand) 55%, #000); }
+.btn.rec { background: var(--brand); border-color: var(--brand); color: var(--on-brand); box-shadow: 0 2px 0 color-mix(in srgb, var(--brand) 55%, #000); }
 .btn.rec:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 88%, #000); }
 .btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.danger-solid:hover:not(:disabled) { background: color-mix(in srgb, var(--bad) 88%, #000); }
@@ -858,6 +859,10 @@ body.locked .site-foot { visibility: visible; }
 /* 進場：卡片依序淡入 */
 .enter { animation: enter-up .5s var(--ease) both; animation-delay: calc(min(var(--enter, 0), 8) * 60ms); }
 @keyframes enter-up { from { opacity: 0; transform: translateY(12px); } }
+/* 裝著手機固定引導列（#gCoach）的面板只淡入、不位移：
+   祖先元素一有 transform，position: fixed 就會改以那個祖先為基準，引導列會跑到頁面中間（M1） */
+#tab-guide:not([hidden]), #tab-guide.enter { animation-name: fade-in; }
+@keyframes fade-in { from { opacity: 0; } }
 
 /* 表單錯誤 */
 .field-err { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--bad-ink); }
@@ -923,7 +928,6 @@ body.locked .site-foot { visibility: visible; }
 
 /* 有底部引導列時，提示訊息往上移，不要蓋住按鈕 */
 body.has-coach .toasts { bottom: 100px; }
-@media (max-width: 600px) { body.has-coach .toasts { bottom: calc(150px + env(safe-area-inset-bottom)); } }
 
 /* App 內建瀏覽器提醒 */
 .inapp { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); margin-bottom: 18px; color: var(--ink); }
@@ -937,28 +941,45 @@ body.has-coach .toasts { bottom: 100px; }
 .coach-steps { display: flex; gap: 6px; flex: none; }
 .coach-steps span { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800;
   background: color-mix(in srgb, var(--surface) 14%, transparent); color: color-mix(in srgb, var(--surface) 70%, transparent); transition: background .3s, color .3s, transform .3s var(--spring); }
-.coach-steps span.on { background: var(--brand); color: #fff; transform: scale(1.1); }
+.coach-steps span.on { background: var(--brand); color: var(--on-brand); transform: scale(1.1); }
 .coach-steps span.done { background: var(--good); color: #fff; }
 .coach-msg { flex: 1 1 200px; min-width: 0; }
 .coach-msg strong { display: block; font-size: 15px; line-height: 1.35; }
 .coach-msg small { display: block; font-size: 12.5px; color: color-mix(in srgb, var(--surface) 70%, transparent); margin-top: 2px; }
 .coach-msg.swap { animation: coach-swap .35s var(--ease); }
 @keyframes coach-swap { from { opacity: 0; transform: translateY(6px); } }
-.coach .btn { flex: none; }
-.coach .btn:not(.rec):not(.primary) { background: var(--surface); color: var(--ink); border-color: var(--surface); }
+.coach .btn { flex: none; min-height: 44px; }
+.coach .btn:not(.rec):not(.primary):not(.stop):not(.skip) { background: var(--surface); color: var(--ink); border-color: var(--surface); }
 .coach .btn.primary { background: var(--surface); color: var(--ink); border-color: var(--surface); box-shadow: none; }
+/* 停止：和「開始」類按鈕長得不一樣（白底紅字＋紅框），不會在原地被看成同一顆（M2） */
+.coach .btn.stop { background: var(--surface); color: var(--bad-ink); border: 2px solid var(--bad); box-shadow: none; }
+/* 略過檢查：低調的文字按鈕，不搶「先對準」這件事（M3） */
+.coach .btn.skip { background: transparent; border-color: color-mix(in srgb, var(--surface) 35%, transparent); color: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: none; font-weight: 600; }
+.coach .btn.skip svg { display: none; }
+/* 按鈕剛換意思：停用中（不要用 .btn:disabled 的半透明，看起來像壞掉） */
+.coach .btn.locked { opacity: .55; }
+/* 捲到鏡頭／步驟標題時，留出桌機固定頁首的高度 */
+#gCamBox, #gStep1, #gStep2 { scroll-margin-top: 72px; }
 @media (max-width: 600px) {
-  .coach { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); margin: 0; z-index: 30; }
+  /* M1：手機錄影時，頁首跟著捲走，不再固定佔 100 px；引導列縮成一行（約 64 px） */
+  body.has-coach .appbar { position: static; backdrop-filter: none; }
+  #gCamBox, #gStep1, #gStep2 { scroll-margin-top: 10px; }
+  .coach { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); margin: 0; z-index: 30;
+    flex-wrap: nowrap; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 12px; }
   .coach-steps { display: none; }
-  body.has-coach main { padding-bottom: 120px; }
-  .coach .btn { flex: 1 1 100%; padding: 13px 16px; font-size: 16px; }
+  .coach-msg { flex: 1 1 auto; }
+  .coach-msg strong { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .coach-msg small { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .coach .btn { padding: 10px 14px; font-size: 15px; }
+  body.has-coach main { padding-bottom: 84px; }
+  body.has-coach .toasts { bottom: calc(80px + env(safe-area-inset-bottom)); }
 }
 
 /* 步驟標題：完成時打勾 */
 .step-h span { transition: background .3s, transform .35s var(--spring); }
 .step-h.done span { background: var(--good); color: #fff; font-size: 0; }
 .step-h.done span::before { content: "✓"; font-size: 14px; }
-.step-h.now span { background: var(--brand); color: #fff; transform: scale(1.12); box-shadow: 0 0 0 5px var(--brand-soft); }
+.step-h.now span { background: var(--brand); color: var(--on-brand); transform: scale(1.12); box-shadow: 0 0 0 5px var(--brand-soft); }
 .step-h.done span, .step-h.now span { animation: pop .4s var(--spring); }
 @keyframes pop { 0% { transform: scale(.6); } 100% { transform: scale(1); } }
 .step-h.now span { animation: pop-now .4s var(--spring) forwards; }
@@ -971,12 +992,13 @@ body.has-coach .toasts { bottom: 100px; }
 @keyframes stamp { 0% { opacity: 0; transform: scale(1.35) rotate(-3deg); } 100% { opacity: 1; transform: none; } }
 .phrase-chip { transition: transform .15s var(--ease), background .15s, border-color .15s, color .15s; }
 .phrase-chip:active { transform: scale(.95); }
-.phrase-chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-.phrase-chip.on small { background: rgba(255, 255, 255, .25); color: #fff; }
+.phrase-chip.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.phrase-chip.on small { background: color-mix(in srgb, var(--on-brand) 22%, transparent); color: var(--on-brand); }
 .chip:hover { border-color: var(--brand); color: var(--brand-ink); }
 .bank-group.first { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
 .bank-cat .ico { color: var(--brand); }
-@media (pointer: coarse) { .phrase-chip { min-height: 40px; padding: 7px 14px; } .chip { min-height: 36px; } }
+/* 觸控目標至少 44 px（M5）。窄螢幕也套用，避免有些手機瀏覽器沒回報 pointer: coarse */
+@media (pointer: coarse), (max-width: 600px) { .phrase-chip { min-height: 44px; padding: 8px 14px; } .chip { min-height: 44px; } }
 
 /* 鏡頭：準備好時框線呼吸、錄影中紅框＋REC */
 .cam { border-radius: 16px; }
