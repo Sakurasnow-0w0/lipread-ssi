@@ -1,7 +1,7 @@
 # 交接審查文件：唇語辨識專題網站
 
 > 給接手審查或維護的人（或另一個 AI 工作階段）。
-> 最後更新：2026-11-20，後端 v5。對應的 commit 請看 `git log -1 -- docs/HANDOFF.md`（文件改版時一定會留下 commit）。
+> 最後更新：2026-11-20，後端 v5.1。對應的 commit 請看 `git log -1 -- docs/HANDOFF.md`（文件改版時一定會留下 commit）。
 
 ---
 
@@ -90,7 +90,7 @@ Google Apps Script（Code.gs）
 
 **指令碼屬性**：`ROOT_FOLDER_ID`、`GITHUB_TOKEN`、`TEAM_CODE`、`ADMIN_CODE`（建議 16 個字元以上的隨機字串，可用編輯器的 `makeCode` 函式產生）、`PRIVACY_VERSION`（有設時，後端拒收沒有同意這個版本的樣本）、`TURNSTILE_SECRET`（有設時開啟人機驗證）、`TURNSTILE_HOSTNAMES`（允許的網域，預設 `sakurasnow-0w0.github.io`）。
 
-**Turnstile 與通行證**：前端 `config.js` 的 `turnstileSiteKey` 有填時，`LR.drive.call` 改走 `callWithSession`：沒有通行證就用記住的通關碼＋新的 Turnstile 驗證碼呼叫 `login`（同時多個請求只登入一次）；後端回 `SESSION_EXPIRED`／`LOGIN_REQUIRED` 時自動重新登入並重試一次。後端設了 `TURNSTILE_SECRET` 後，直接帶通關碼的請求一律回 `LOGIN_REQUIRED`。快取只存通行證的 SHA-256，不存原文。開發者 token 不受影響。
+**Turnstile 與通行證**：前端 `config.js` 的 `turnstileSiteKey` 有填時，`LR.drive.call` 改走 `callWithSession`：沒有通行證就用記住的通關碼＋新的 Turnstile 驗證碼呼叫 `login`（同時多個請求只登入一次）；後端回 `SESSION_EXPIRED`／`LOGIN_REQUIRED` 時自動重新登入並重試一次。後端設了 `TURNSTILE_SECRET` 後，直接帶通關碼的請求一律回 `LOGIN_REQUIRED`。快取只存通行證的 SHA-256，不存原文。通行證記著發證當下通關碼的指紋（`codeStamp_`，雜湊前 12 bytes），**換掉 `TEAM_CODE`（管理員通行證另含 `ADMIN_CODE`）後舊通行證立刻失效**，回 `SESSION_EXPIRED`。開發者 token 不受影響。
 
 **猜密碼的處理**：依身分（team／admin／token）分開計數。通關碼夠長（≥16 字元）時，輸入正確的人永遠可以進來，猜錯的只會被計數與擋下，別人故意狂打錯的也鎖不住大家；通關碼太短時，錯太多次就整分鐘暫停。token 每次驗證失敗都要連 GitHub，所以失敗結果快取 10 分鐘，並有每日上限。
 
@@ -153,7 +153,7 @@ Google Apps Script（Code.gs）
 node tests/backend.test.js
 ```
 
-用假的 Apps Script 環境跑 58 項檢查（含 Turnstile 登入與通行證）。Node 裡請求是一個一個跑，**沒辦法驗證加鎖在真正同時送出時的效果**，這部分要另外部署測試版實測。
+用假的 Apps Script 環境跑 66 項檢查（含 Turnstile 登入與通行證）。Node 裡請求是一個一個跑，**沒辦法驗證加鎖在真正同時送出時的效果**，這部分要另外部署測試版實測。
 
 ### 前端（本機，不碰正式後端）
 
@@ -235,7 +235,7 @@ window.fetch = async (url, opts = {}) => {
 
 ## 10. 目前狀態
 
-- 後端 v5（`doGet` 回傳 `version: 5` 與 `turnstile: true/false`）；修正內容見 SECURITY.md
+- 後端 v5.1（`doGet` 回傳 `version: 5.1` 與 `turnstile: true/false`）；修正內容見 SECURITY.md
 - 資料 repo 已有 `data/schedule.json`（交接文件匯入的 9 項待辦）
 - 隱私權請求表單：`assets/config.js` 的 `contactFormUrl`；刻意不放信箱，避免公開 repo 被掃信箱
 - 隱私權政策版本 `2026-11-20`（加入 Cloudflare Turnstile 說明）；改內容時請同時改 `config.js` 的 `privacyVersion` 和指令碼屬性 `PRIVACY_VERSION`，所有人會被要求重新同意

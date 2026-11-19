@@ -1,5 +1,5 @@
 /**
- * 唇語專題：後端服務（Google Apps Script）v5
+ * 唇語專題：後端服務（Google Apps Script）v5.1
  *
  * 功能
  *  1. 影片存進雲端硬碟，依「念的內容」自動建子資料夾
@@ -82,7 +82,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return json_({ ok: true, service: "lipread-upload", version: 5, turnstile: turnstileOn_() });
+  return json_({ ok: true, service: "lipread-upload", version: 5.1, turnstile: turnstileOn_() });
 }
 
 function json_(o) {
@@ -234,12 +234,21 @@ function sessionKey_(token) {
   return "sess_" + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
 }
 
+/**
+ * 通關碼的「指紋」：發通行證時記下，之後每次比對。專題負責人換掉 TEAM_CODE（管理員另含 ADMIN_CODE）後，
+ * 舊的通行證立刻失效，不用等 6 小時。只存雜湊的前 12 bytes，不存通關碼本身。
+ */
+function codeStamp_(role) {
+  var src = "team\n" + prop_("TEAM_CODE") + (role === "admin" ? "\nadmin\n" + prop_("ADMIN_CODE") : "");
+  return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, src).slice(0, 12));
+}
+
 function newSession_(who) {
   var raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Utilities.getUuid() + Date.now());
   var raw2 = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + raw.join(","));
   var hex = function (bytes) { return bytes.map(function (b) { return ((b & 0xff) + 256).toString(16).slice(1); }).join(""); };
   var token = hex(raw.slice(0, 16)) + hex(raw2.slice(0, 16));   // 64 個十六進位字元
-  CacheService.getScriptCache().put(sessionKey_(token), JSON.stringify({ role: who.role, name: who.name }), CONFIG.SESSION_TTL);
+  CacheService.getScriptCache().put(sessionKey_(token), JSON.stringify({ role: who.role, name: who.name, v: codeStamp_(who.role) }), CONFIG.SESSION_TTL);
   return token;
 }
 
@@ -248,7 +257,13 @@ function getSession_(token) {
   var v = CacheService.getScriptCache().get(sessionKey_(token));
   if (!v) throw codedError_("登入已過期，請重新登入", "SESSION_EXPIRED");
   var s = JSON.parse(v);
-  return { role: s.role === "admin" ? "admin" : "team", name: String(s.name || "訪客") };
+  var role = s.role === "admin" ? "admin" : "team";
+  // 通關碼（或管理員密碼）換過了 → 這張通行證作廢，前端會自動用新的通關碼重新登入（舊碼的人就進不來了）
+  if (!s.v || !sameText_(String(s.v), codeStamp_(role))) {
+    CacheService.getScriptCache().remove(sessionKey_(token));
+    throw codedError_("通關碼已更換，請重新登入", "SESSION_EXPIRED");
+  }
+  return { role: role, name: String(s.name || "訪客") };
 }
 
 /** 登入：（開了 Turnstile 時先驗證）→ 檢查通關碼（和選填的管理員密碼）→ 發通行證。 */

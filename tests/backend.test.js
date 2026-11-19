@@ -202,7 +202,7 @@ console.log("T Turnstile 登入與通行證");
   check("沒開 Turnstile：直接帶通關碼照常可用", post(env0, { action: "ping", code: "lip2026" }).ok === true);
   const l0 = post(env0, { action: "login", code: "lip2026", name: "小明" });
   check("沒開 Turnstile：login 也能拿到通行證", l0.ok === true && /^[0-9a-f]{64}$/.test(l0.session), l0);
-  check("doGet 回報 version 5、turnstile=false", env0.doGet().version === 5 && env0.doGet().turnstile === false);
+  check("doGet 回報 version 5.1、turnstile=false", env0.doGet().version === 5.1 && env0.doGet().turnstile === false);
 
   const env = makeEnv({ TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET", ROOT_FOLDER_ID: "ROOTFOLDERID" });
   check("doGet 回報 turnstile=true", env.doGet().turnstile === true);
@@ -240,6 +240,26 @@ console.log("T Turnstile 登入與通行證");
   env2.__tsHost = "b.test";
   check("TURNSTILE_HOSTNAMES 可設多個網域", post(env2, { action: "login", code: "lip2026", turnstile: "PASS" }).ok === true);
   { const r = post(env, { action: "ping", token: "GOODTOKEN_xxxxxxxxxxxxxxxx" }); check("開發者 token 不受 Turnstile 影響", r.ok === true, r); }
+  // S1：換通關碼後，舊通行證立刻失效
+  {
+    const props = { TEAM_CODE: "lip2026", ADMIN_CODE: STRONG + "X", GITHUB_TOKEN: "x", TURNSTILE_SECRET: "SECRET", ROOT_FOLDER_ID: "ROOTFOLDERID" };
+    const e = makeEnv(props);
+    const t1 = post(e, { action: "login", code: "lip2026", name: "甲", turnstile: "PASS" }).session;
+    const a1 = post(e, { action: "login", code: "lip2026", adminCode: STRONG + "X", name: "雪", turnstile: "PASS" }).session;
+    check("S1：快取裡沒有通關碼原文", ![...e.__cache.values()].some((v) => String(v).includes("lip2026") || String(v).includes(STRONG)));
+    props.ADMIN_CODE = STRONG + "Y";
+    check("S1：換管理員密碼 → 管理員通行證失效", post(e, { action: "ping", session: a1 }).code === "SESSION_EXPIRED");
+    check("S1：換管理員密碼不影響團隊通行證", post(e, { action: "ping", session: t1 }).ok === true);
+    props.TEAM_CODE = "new2026";
+    const r = post(e, { action: "ping", session: t1 });
+    check("S1：換團隊通關碼 → 團隊通行證失效", r.code === "SESSION_EXPIRED" && /通關碼已更換/.test(r.error), r);
+    check("S1：失效的通行證從快取移除", post(e, { action: "ping", session: t1 }).error === "登入已過期，請重新登入");
+    check("S1：舊通關碼無法重新登入", /通關碼錯誤/.test(post(e, { action: "login", code: "lip2026", turnstile: "PASS" }).error));
+    const t2 = post(e, { action: "login", code: "new2026", turnstile: "PASS" }).session;
+    check("S1：新通關碼登入後可用", post(e, { action: "ping", session: t2 }).ok === true);
+    e.__cache.set([...e.__cache.keys()].find((k) => k.startsWith("sess_")), JSON.stringify({ role: "team", name: "舊版" }));
+    check("S1：沒有指紋的舊版通行證視為過期", [...e.__cache.keys()].some((k) => k.startsWith("sess_")) && post(e, { action: "ping", session: t2 }).code === "SESSION_EXPIRED");
+  }
   let n = 0;
   for (let i = 0; i < 70; i++) if (/太頻繁|太多/.test(String(post(env2, { action: "login", code: "x", turnstile: "FAIL" }).error))) n++;
   check("登入每分鐘有上限", n > 0, n);
