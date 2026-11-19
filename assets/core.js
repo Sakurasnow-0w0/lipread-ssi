@@ -520,6 +520,8 @@
       quality: { frames: num(q.frames), missed: num(q.missed), duration: num(q.duration) },
       createdAt: typeof o.createdAt === "string" && Number.isFinite(Date.parse(o.createdAt)) ? o.createdAt : "",
       createdBy: LR.cleanText(o.createdBy, 60),
+      consent: o.consent && typeof o.consent === "object" && Number.isFinite(Date.parse(o.consent.at))
+        ? { version: LR.cleanText(o.consent.version, 20), at: o.consent.at } : null,
     };
   };
 
@@ -545,6 +547,7 @@
       quality: { frames: quality.frames, missed: quality.missed, duration: quality.duration },
       createdAt: new Date().toISOString(),
       createdBy: author || "",
+      consent: LR.policy.accepted() ? { version: LR.policy.version, at: LR.policy.accepted().at } : null,
     };
   };
 
@@ -1049,16 +1052,100 @@
     document.body.append(dlg);
     chip.addEventListener("click", () => LR.openSettings());
     // 沒登入就鎖住整個頁面，只留登入視窗（真正的資料保護在後端：沒有通關碼讀不到任何資料）
+    const consentDlg = buildConsentDialog();
+    document.body.append(consentDlg);
+    document.body.append(LR.el("footer", { class: "site-foot" },
+      LR.el("a", { href: "privacy.html", text: "隱私權與使用規範" }),
+      LR.el("span", { text: `・資料保存到專題總截止日後 ${LR.policy.retentionYears} 年` })));
+
+    // 隱私權頁面不用登入就能看
+    if (opts && opts.public) {
+      document.documentElement.classList.remove("prelock");
+      return;
+    }
+    // 沒登入就鎖住整個頁面，只留登入視窗；登入後還沒同意目前版本的政策，也要先同意
+    // （真正的資料保護在後端：沒有通關碼讀不到任何資料）
     const applyLock = () => {
-      const locked = !LR.mode();
+      const loggedIn = !!LR.mode();
+      const consented = !!LR.policy.accepted();
+      const locked = !loggedIn || !consented;
       document.body.classList.toggle("locked", locked);
       document.documentElement.classList.remove("prelock");
-      if (locked && !dlg.open) LR.openSettings();
+      if (!loggedIn) { if (consentDlg.open) consentDlg.close(); if (!dlg.open) LR.openSettings(); }
+      else if (!consented && !consentDlg.open) { if (dlg.open) dlg.close(); LR.openConsent(); }
     };
     applyLock();
     LR.events.addEventListener("connection", applyLock);
-    void opts;
+    LR.events.addEventListener("consent", applyLock);
   };
+
+  // ───────────────────────── 隱私權政策與知情同意 ─────────────────────────
+  const CONSENT_KEY = "lr-consent";
+  LR.policy = {
+    version: LR.cleanText(CFG.privacyVersion, 20) || "1",
+    retentionYears: Math.max(0, Math.min(10, Number(CFG.retentionYears) || 1)),
+    contactEmail: /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}$/.test(CFG.contactEmail || "") ? CFG.contactEmail : "",
+    accepted() {
+      try {
+        const c = JSON.parse(store.get("localStorage", CONSENT_KEY) || "null");
+        return c && c.version === this.version ? c : null;
+      } catch { return null; }
+    },
+    accept() {
+      const c = { version: this.version, at: new Date().toISOString() };
+      store.set("localStorage", CONSENT_KEY, JSON.stringify(c));
+      LR.events.dispatchEvent(new Event("consent"));
+      return c;
+    },
+    withdraw() {
+      store.del("localStorage", CONSENT_KEY);
+      LR.events.dispatchEvent(new Event("consent"));
+    },
+  };
+
+  function buildConsentDialog() {
+    const E = LR.el;
+    const c1 = E("input", { type: "checkbox", id: "consentRead" });
+    const c2 = E("input", { type: "checkbox", id: "consentPeople" });
+    const ok = E("button", { class: "btn primary", type: "submit", text: "同意並開始使用", disabled: true });
+    const no = E("button", { class: "btn ghost", type: "button", text: "不同意（登出）" });
+    const sync = () => { ok.disabled = !(c1.checked && c2.checked); };
+    c1.addEventListener("change", sync);
+    c2.addEventListener("change", sync);
+    const P = LR.policy;
+    const form = E("form", { class: "dialog-body", method: "dialog" },
+      E("div", { class: "dialog-h" },
+        E("h2", { id: "consentTitle", text: "使用前請先確認" }),
+        E("p", { class: "help", text: `隱私權政策 ${P.version} 版` })),
+      E("ul", { class: "consent-points" },
+        E("li", null, E("strong", { text: "用途：" }), "只用於本專題（辨識訓練與測試、專題報告與展示），報告只用統計數字與嘴型動畫，不公開影片。"),
+        E("li", null, E("strong", { text: "存放：" }), "口型數據在 GitHub 私有 repo、影片在專題負責人的雲端硬碟，只有專題成員看得到。"),
+        E("li", null, E("strong", { text: "期限：" }), `保存到專題總截止日後 ${P.retentionYears} 年，期滿全部刪除。`),
+        E("li", null, E("strong", { text: "權利：" }), "自願參與，可以隨時撤回同意、要求刪除自己的資料。未滿 18 歲需法定代理人同意。")),
+      E("p", null, E("a", { href: "privacy.html", target: "_blank", rel: "noopener", text: "閱讀完整的隱私權與使用規範 ↗" })),
+      E("label", { class: "check consent-check" }, c1, E("span", { text: "我已閱讀並同意隱私權政策與使用規範" })),
+      E("label", { class: "check consent-check" }, c2, E("span", { text: "我只會錄自己，或已經取得影片中的人同意" })),
+      E("div", { class: "dialog-actions" }, no, E("span", { class: "spacer" }), ok));
+    const dlg = E("dialog", { class: "dialog", "aria-labelledby": "consentTitle" }, form);
+    LR.openConsent = () => { c1.checked = false; c2.checked = false; sync(); if (!dlg.open) dlg.showModal(); };
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!(c1.checked && c2.checked)) return;
+      P.accept();
+      dlg.close();
+      LR.toast("謝謝！可以開始使用了", "good");
+    });
+    no.addEventListener("click", () => {
+      dlg.close();
+      LR.settings.disconnect();
+      LR.team.clear();
+      LR.events.dispatchEvent(new Event("connection"));
+    });
+    // 還沒同意前不能用 Esc 關掉（被瀏覽器強制關掉時再打開）
+    dlg.addEventListener("cancel", (e) => { if (LR.mode() && !P.accepted()) e.preventDefault(); });
+    dlg.addEventListener("close", () => { if (LR.mode() && !P.accepted()) setTimeout(() => { if (!dlg.open && LR.mode() && !P.accepted()) dlg.showModal(); }, 0); });
+    return dlg;
+  }
 
   function mouthIcon() {
     const ns = "http://www.w3.org/2000/svg";

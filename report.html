@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2a78d6">
-<title>分析報告｜無聲溝通</title>
+<title>分析報告｜專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -12,7 +12,7 @@
   // 還沒登入就先把內容藏起來，等共用程式確認身分（避免畫面閃一下）
   try {
     var s = window.localStorage, ss = window.sessionStorage;
-    if (!(s.getItem("lr-team") || ss.getItem("lr-team") || s.getItem("lr-token") || ss.getItem("lr-token"))) document.documentElement.classList.add("prelock");
+    if (!(s.getItem("lr-team") || ss.getItem("lr-team") || s.getItem("lr-token") || ss.getItem("lr-token")) || !s.getItem("lr-consent")) document.documentElement.classList.add("prelock");
   } catch (e) { document.documentElement.classList.add("prelock"); }
 </script>
 <link rel="stylesheet" href="assets/style.css">
@@ -136,6 +136,25 @@
     </section>
 
     <section class="card reveal">
+      <div class="card-h">
+        <h2>使用統計</h2>
+        <p>系統被用了多少：誰在上傳、哪幾天比較活躍、資料有沒有同意紀錄。</p>
+      </div>
+      <div class="usage-tiles" id="usageTiles"></div>
+      <div class="two-col" style="margin-top:18px">
+        <div>
+          <h3 class="subh" id="dailyTitle">最近 30 天每日上傳數</h3>
+          <div class="vbars" id="dailyBars" role="img" aria-label="最近 30 天每日上傳數長條圖"></div>
+          <div class="vbars-axis" id="dailyAxis"></div>
+        </div>
+        <div>
+          <h3 class="subh">各上傳者</h3>
+          <div class="hbars" id="uploaderBars"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card reveal">
       <div class="card-h row">
         <div>
           <h2>樣本清單</h2>
@@ -150,6 +169,7 @@
             <option value="ok">只看答對</option>
           </select>
           <button class="btn sm" id="linkVideos">連結影片資料夾</button>
+          <button class="btn sm danger" id="deleteSpeaker" hidden>刪除這位錄製者的全部資料</button>
           <input type="file" id="videoFolder" webkitdirectory multiple hidden>
         </div>
       </div>
@@ -248,7 +268,7 @@
   }
 
   async function loadLocal(files) {
-    if (S.busy) return;
+    if (S.busy) { toast("正在讀取資料，請等這次讀完再試一次", "warn"); return; }
     S.busy = true;
     try {
       progress(0, "讀取本機檔案…");
@@ -310,10 +330,50 @@
     renderKpis();
     renderEval();
     renderDataset();
+    renderUsage();
     renderFilters();
     renderSamples();
     setupPlayers();
     reveal();
+  }
+
+  // ───────── 使用統計 ─────────
+  function dayKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+  function renderUsage() {
+    const dated = S.samples.filter((s) => Number.isFinite(Date.parse(s.createdAt)));
+    const byDay = new Map(), byUser = new Map();
+    for (const s of dated) {
+      const k = dayKey(new Date(s.createdAt));
+      byDay.set(k, (byDay.get(k) || 0) + 1);
+      const u = s.createdBy || "（未記錄）";
+      byUser.set(u, (byUser.get(u) || 0) + 1);
+    }
+    const now = Date.now();
+    const last7 = dated.filter((s) => now - Date.parse(s.createdAt) < 7 * 86400000).length;
+    const withConsent = S.samples.filter((s) => s.consent).length;
+    const first = dated.length ? new Date(Math.min(...dated.map((s) => Date.parse(s.createdAt)))) : null;
+    const tile = (label, value, sub) => el("div", { class: "utile" }, el("div", { class: "kpi-label", text: label }), el("div", { class: "utile-v", text: value }), el("div", { class: "kpi-sub", text: sub }));
+    $("usageTiles").replaceChildren(
+      tile("上傳過的人", String(byUser.size), "依登入時填的名字"),
+      tile("有上傳的天數", String(byDay.size), first ? `從 ${first.toLocaleDateString("zh-TW")} 開始` : "—"),
+      tile("近 7 天上傳", String(last7), "段"),
+      tile("有同意紀錄", `${withConsent} / ${S.samples.length}`, withConsent < S.samples.length ? "較早的樣本沒有記錄" : "全部都有"));
+
+    // 最近 30 天每日長條（單一系列、從 0 起算）
+    const days = [];
+    for (let i = 29; i >= 0; i--) { const d = new Date(now - i * 86400000); days.push({ k: dayKey(d), d, n: byDay.get(dayKey(d)) || 0 }); }
+    const max = Math.max(1, ...days.map((x) => x.n));
+    const total30 = days.reduce((a, b) => a + b.n, 0);
+    $("dailyTitle").textContent = `最近 30 天每日上傳數（共 ${total30} 段）`;
+    $("dailyBars").replaceChildren(...days.map((x, i) => el("div", {
+      class: "vbar", tabindex: "0", "data-tip": `${x.d.getMonth() + 1}/${x.d.getDate()}（${"日一二三四五六"[x.d.getDay()]}）\n上傳 ${x.n} 段`,
+    }, el("span", { class: "vfill", style: `height:${(x.n / max * 100).toFixed(1)}%;transition-delay:${i * 15}ms` }))));
+    const ax = $("dailyAxis");
+    ax.replaceChildren(el("span", { text: `${days[0].d.getMonth() + 1}/${days[0].d.getDate()}` }), el("span", { text: `最多 ${max} 段` }), el("span", { text: "今天" }));
+    const ub = [...byUser.entries()].sort((a, b) => b[1] - a[1]);
+    const umax = Math.max(1, ...ub.map((x) => x[1]));
+    $("uploaderBars").replaceChildren(...ub.slice(0, 12).map(([u, n]) => hbar(u, n / umax, `${n} 段`, `${u}：上傳 ${n} 段`)));
+    growBars($("uploaderBars"));
   }
 
   function renderKpis() {
@@ -464,6 +524,10 @@
   function renderSamples() {
     const res = resultMap();
     const fl = $("fLabel").value, fs = $("fSpeaker").value, fr = $("fResult").value;
+    // 管理員選了某位錄製者時，可以一次刪除他的全部資料（對應「要求刪除我的資料」）
+    const nSpk = fs ? S.samples.filter((s) => s.speaker === fs).length : 0;
+    $("deleteSpeaker").hidden = !(fs && S.fromGitHub && LR.gh.canDelete());
+    $("deleteSpeaker").textContent = `刪除錄製者「${fs}」的全部 ${nSpk} 段`;
     let list = S.samples.filter((s) => (!fl || s.label === fl) && (!fs || s.speaker === fs));
     if (fr) list = list.filter((s) => { const r = res.get(s.id); return r && (fr === "ok" ? r.correct : !r.correct); });
     list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -601,6 +665,29 @@
     const v = $("videoSlot").querySelector("video");
     if (v) { v.pause(); v.removeAttribute("src"); v.load(); }
     $("videoSlot").replaceChildren();
+  });
+
+  $("deleteSpeaker").addEventListener("click", async () => {
+    const fs = $("fSpeaker").value;
+    const list = S.samples.filter((s) => s.speaker === fs);
+    if (!fs || !list.length) return;
+    const typed = prompt(`這會刪除錄製者「${fs}」的全部 ${list.length} 段樣本：\n・口型數據從 GitHub 刪除（git 歷史仍可還原）\n・雲端影片移到垃圾桶（30 天內可還原）\n\n確定的話，請輸入錄製者代號「${fs}」：`);
+    if (typed !== fs) { if (typed !== null) toast("輸入的代號不符，已取消", "warn"); return; }
+    const btn = $("deleteSpeaker");
+    btn.disabled = true;
+    let ok = 0, fail = 0;
+    for (const s of list) {
+      btn.textContent = `刪除中 ${ok + fail + 1} / ${list.length}…`;
+      try {
+        await LR.gh.deleteSample(s);
+        if (s.video.driveId && LR.drive.url() && LR.mode() === "github") { try { await LR.drive.trash(s.video.driveId); } catch { /* 影片刪除失敗不影響 */ } }
+        ok++;
+      } catch { fail++; }
+    }
+    btn.disabled = false;
+    toast(`已刪除 ${ok} 段${fail ? `，${fail} 段失敗（可以再試一次）` : ""}`, fail ? "warn" : "good", 7000);
+    $("fSpeaker").value = "";
+    await loadFromGitHub();
   });
 
   async function removeSample(s) {

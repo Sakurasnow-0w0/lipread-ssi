@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a78d6">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>隱私權與使用規範｜專題</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header id="appbar" class="appbar"></header>
+
+<main class="container narrow">
+  <div class="page-head">
+    <div>
+      <h1>隱私權與使用規範</h1>
+      <p class="lede">這個網站是大學專題「給失聲者用的無聲溝通系統」的資料收集與分析工具。錄影或上傳之前，請先讀完這一頁。</p>
+      <p class="help" id="versionLine"></p>
+    </div>
+  </div>
+
+  <section class="card policy-summary">
+    <h2>重點摘要</h2>
+    <ul class="summary-list">
+      <li><span class="si">🎯</span><div><strong>只用於本專題</strong>：訓練與測試唇語辨識、專題報告與展示。</div></li>
+      <li><span class="si">👄</span><div><strong>盡量只存嘴巴</strong>：引導錄影預設只存嘴巴特寫；數據庫只存數字，沒有影像。</div></li>
+      <li><span class="si">🔒</span><div><strong>只有團隊看得到</strong>：要有通關碼才能使用，影片只分享給專題成員。</div></li>
+      <li><span class="si">⏳</span><div><strong>有保存期限</strong>：<span id="retentionShort">專題總截止日後 1 年</span>全部刪除。</div></li>
+      <li><span class="si">🙋</span><div><strong>可以隨時撤回</strong>：想刪掉自己的資料，聯絡專題負責人就會刪除。</div></li>
+      <li><span class="si">🚫</span><div><strong>不公開影片</strong>：報告和展示只用統計數字與嘴型動畫。</div></li>
+    </ul>
+  </section>
+
+  <article class="card policy">
+    <section id="collect">
+      <h2>1. 收集哪些資料</h2>
+      <table class="table policy-table">
+        <thead><tr><th>資料</th><th>內容</th><th>存在哪裡</th></tr></thead>
+        <tbody>
+          <tr><td>口型數據</td><td>每格影像算出的 20 個嘴部特徵數字、嘴唇輪廓座標。<strong>不含影像</strong>。</td><td>GitHub 私有 repo</td></tr>
+          <tr><td>影片</td><td>引導錄影預設只有嘴巴特寫；若關閉「只錄嘴巴」或用「上傳影片」上傳現成影片，會是完整畫面（可能含臉）。</td><td>Google 雲端硬碟（專題負責人的帳號）</td></tr>
+          <tr><td>標註</td><td>念的內容、錄製者代號（請用代號，不要用真實姓名）。</td><td>GitHub 私有 repo</td></tr>
+          <tr><td>上傳紀錄</td><td>登入時填的名字或代號、上傳時間、同意的政策版本。</td><td>GitHub 私有 repo</td></tr>
+          <tr><td>日程與日誌</td><td>大家輸入的待辦、截止日、工作紀錄。</td><td>GitHub 私有 repo</td></tr>
+        </tbody>
+      </table>
+      <p>網站<strong>不收集</strong>：聲音、位置、聯絡方式、身分證字號，也不使用追蹤或廣告 Cookie。臉部偵測在你自己的瀏覽器裡完成，鏡頭畫面不會即時傳到任何伺服器。</p>
+    </section>
+
+    <section id="purpose">
+      <h2>2. 用途</h2>
+      <p>資料<strong>只用於本專題</strong>：</p>
+      <ul>
+        <li>建立範本、測試與改進唇語辨識的準確率</li>
+        <li>專題報告、期中／期末展示：只使用統計數字（例如準確率、混淆矩陣）與嘴型輪廓動畫，<strong>不播放或公開任何人的影片</strong></li>
+      </ul>
+      <p>不會用於本專題以外的研究、商業用途，也不會提供給專題成員以外的人。若之後想延伸用途，會另外取得同意。</p>
+    </section>
+
+    <section id="access">
+      <h2>3. 誰看得到</h2>
+      <ul>
+        <li><strong>專題成員</strong>：持有團隊通關碼的人可以上傳、看分析報告；影片資料夾只分享給專題成員的 Google 帳號。</li>
+        <li><strong>管理員</strong>（專題負責人）：另外可以刪除資料。</li>
+        <li><strong>指導老師</strong>：只看專題報告中的統計結果。</li>
+      </ul>
+      <p>網頁程式碼放在公開的 GitHub repo，但裡面沒有任何資料、密碼或通關碼；資料都在需要通關碼才能讀取的地方。</p>
+    </section>
+
+    <section id="retention">
+      <h2>4. 保存期限</h2>
+      <p id="retentionText">資料保存到<strong>專題總截止日後 1 年</strong>，期滿後由專題負責人刪除所有影片、口型數據與上傳紀錄（刪除整個 GitHub 資料 repo 與雲端硬碟影片資料夾，版本紀錄也一併消失）。</p>
+      <div class="retention-box" id="retentionBox" hidden>
+        <div><span class="eyebrow">專題總截止日</span><strong id="rFinal">—</strong></div>
+        <div><span class="eyebrow">資料刪除日</span><strong id="rDelete">—</strong></div>
+        <div><span class="eyebrow">距離刪除</span><strong id="rLeft">—</strong></div>
+      </div>
+      <p class="help" id="retentionHint">登入後這裡會依「日程」頁設定的專題總截止日，自動算出實際的刪除日期。</p>
+    </section>
+
+    <section id="rights">
+      <h2>5. 你的權利</h2>
+      <ul>
+        <li><strong>自願參與</strong>：不參與不會有任何影響。</li>
+        <li><strong>查看</strong>：可以請專題負責人告訴你，資料庫裡有哪些你的資料。</li>
+        <li><strong>撤回同意、要求刪除</strong>：隨時都可以，不需要理由。專題負責人會刪除你錄製者代號底下的全部影片與口型數據：雲端影片先移到垃圾桶，30 天後永久刪除；口型數據會立刻從資料庫移除、不再被使用，但技術上仍會留在 GitHub 的版本紀錄裡，直到保存期限屆滿、整個資料庫刪除為止。已經寫進報告的匿名統計數字無法回溯修改。</li>
+        <li><strong>未滿 18 歲</strong>：需要法定代理人同意後才能參與。</li>
+      </ul>
+    </section>
+
+    <section id="rules">
+      <h2>6. 使用規範</h2>
+      <div class="dodont">
+        <div>
+          <h4>✓ 可以</h4>
+          <ul>
+            <li>錄你自己，或是<strong>已經同意</strong>參與的人</li>
+            <li>用代號當錄製者名稱</li>
+            <li>把網址和通關碼給專題成員與同意參與的受試者</li>
+            <li>發現錄錯或拍到不該拍的，請管理員刪除</li>
+          </ul>
+        </div>
+        <div>
+          <h4>✗ 不可以</h4>
+          <ul>
+            <li>偷拍、或錄沒有同意的人</li>
+            <li>把通關碼、管理員密碼貼到公開的地方</li>
+            <li>下載、轉傳別人的影片到專題以外的地方</li>
+            <li>上傳跟專題無關的內容，或故意灌爆資料</li>
+          </ul>
+        </div>
+      </div>
+      <p class="help">違反規範的帳號會被要求停止使用，相關資料會被刪除；通關碼外洩時會立即更換。</p>
+    </section>
+
+    <section id="security">
+      <h2>7. 安全措施</h2>
+      <ul>
+        <li>網站全程 HTTPS；沒有通關碼讀不到任何資料，密碼錯太多次會暫停一分鐘</li>
+        <li>通關碼、GitHub 存取權杖只放在後端服務，網頁程式碼裡沒有</li>
+        <li>資料 repo 為私有；每次新增、刪除都有紀錄，可以追查</li>
+        <li>網站設定為不讓搜尋引擎收錄</li>
+      </ul>
+    </section>
+
+    <section id="contact">
+      <h2>8. 聯絡窗口</h2>
+      <p id="contactText">有任何問題、想查看或刪除自己的資料，請聯絡提供你通關碼的專題負責人。</p>
+    </section>
+  </article>
+
+  <section class="card consent-status" id="consentStatus" hidden>
+    <h2>你的同意狀態</h2>
+    <p id="consentText"></p>
+    <div class="actions"><button class="btn ghost danger" id="withdraw" type="button">撤回同意並登出</button></div>
+  </section>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  LR.mountHeader("privacy", { public: true });
+  const P = LR.policy;
+
+  $("versionLine").textContent = `版本：${P.version}`;
+  const years = P.retentionYears;
+  $("retentionShort").textContent = `專題總截止日後 ${years} 年`;
+  $("retentionText").replaceChildren("資料保存到", Object.assign(document.createElement("strong"), { textContent: `專題總截止日後 ${years} 年` }),
+    "，期滿後由專題負責人刪除所有影片、口型數據與上傳紀錄（刪除整個 GitHub 資料 repo 與雲端硬碟影片資料夾，版本紀錄也一併消失）。");
+  if (P.contactEmail) {
+    const a = Object.assign(document.createElement("a"), { href: "mailto:" + P.contactEmail, textContent: P.contactEmail });
+    $("contactText").replaceChildren("有任何問題、想查看或刪除自己的資料，請寫信到 ", a, "，或聯絡提供你通關碼的專題負責人。");
+  }
+
+  async function showRetention() {
+    if (!LR.api.ready()) return;
+    try {
+      const s = await LR.api.schedule();
+      const f = s && s.final && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s.final.at || "") ? new Date(s.final.at) : null;
+      if (!f) { $("retentionHint").textContent = "專題總截止日還沒設定（管理員可以在「日程」頁設定），設定後這裡會顯示實際刪除日期。"; return; }
+      const del = new Date(f); del.setFullYear(del.getFullYear() + years);
+      const fmt = (d) => d.toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" });
+      $("rFinal").textContent = fmt(f);
+      $("rDelete").textContent = fmt(del);
+      const days = Math.ceil((del - Date.now()) / 86400000);
+      $("rLeft").textContent = days > 0 ? `${days} 天` : "已到期，應刪除";
+      $("retentionBox").hidden = false;
+      $("retentionHint").textContent = "依「日程」頁的專題總截止日自動計算。";
+    } catch { /* 讀不到就維持文字說明 */ }
+  }
+
+  function showConsent() {
+    const c = P.accepted();
+    $("consentStatus").hidden = !LR.mode();
+    if (!LR.mode()) return;
+    $("consentText").textContent = c
+      ? `你在 ${new Date(c.at).toLocaleString("zh-TW", { hour12: false })} 同意了 ${c.version} 版。`
+      : "你還沒有同意目前版本的政策，回到其他頁面時會請你確認。";
+  }
+  $("withdraw").addEventListener("click", () => {
+    if (!confirm("撤回同意後會登出，之後不能再錄影或上傳。\n已經上傳的資料不會自動刪除，要刪除請聯絡專題負責人。\n\n確定撤回？")) return;
+    P.withdraw();
+    LR.settings.disconnect();
+    LR.team.clear();
+    LR.events.dispatchEvent(new Event("connection"));
+    LR.toast("已撤回同意並登出", "info");
+  });
+  LR.events.addEventListener("connection", () => { showConsent(); showRetention(); });
+  showConsent();
+  showRetention();
+})();
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@
   // 還沒登入就先把內容藏起來，等共用程式確認身分（避免畫面閃一下）
   try {
     var s = window.localStorage, ss = window.sessionStorage;
-    if (!(s.getItem("lr-team") || ss.getItem("lr-team") || s.getItem("lr-token") || ss.getItem("lr-token"))) document.documentElement.classList.add("prelock");
+    if (!(s.getItem("lr-team") || ss.getItem("lr-team") || s.getItem("lr-token") || ss.getItem("lr-token")) || !s.getItem("lr-consent")) document.documentElement.classList.add("prelock");
   } catch (e) { document.documentElement.classList.add("prelock"); }
 </script>
 <link rel="stylesheet" href="assets/style.css">
