@@ -155,7 +155,7 @@ function gh_(method, path, body) {
     muteHttpExceptions: true,
   };
   if (body) { opts.contentType = "application/json"; opts.payload = JSON.stringify(body); }
-  var res = UrlFetchApp.fetch("https://api.github.com/repos/" + CONFIG.GITHUB_OWNER + "/" + CONFIG.GITHUB_REPO + "/" + path, opts);
+  var res = UrlFetchApp.fetch("https://api.github.com/repos/" + CONFIG.GITHUB_OWNER + "/" + CONFIG.GITHUB_REPO + (path ? "/" + path : ""), opts);
   var code = res.getResponseCode();
   var data = null;
   try { data = JSON.parse(res.getContentText()); } catch (x) { data = null; }
