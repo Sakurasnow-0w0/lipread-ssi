@@ -19,5 +19,5 @@ window.LR_CONFIG = {
   // ───── 人機驗證（Cloudflare Turnstile）─────
   // 填 Cloudflare 給的「網站金鑰」（site key，0x 開頭，公開沒關係）。留空＝不使用人機驗證。
   // 「秘密金鑰」（secret key）只能放在 Apps Script 的指令碼屬性 TURNSTILE_SECRET，絕對不要寫在這裡
-  turnstileSiteKey: "",
+  turnstileSiteKey: "0x4AAAAAAGJCFCGGk0XIjHHv",
 };
