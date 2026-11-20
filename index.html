@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f4f6f5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17212a" media="(prefers-color-scheme: dark)">
-<title>錄影｜唇語專題</title>
+<title>錄影｜無聲溝通專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -217,7 +217,7 @@
         </div>
         <div class="drop slim desktop-only" id="dropUpload">
           <span class="drop-title">或把影片拖到這裡</span>
-          <span class="drop-sub">支援 iPhone 的 MOV／HEVC（建議直接用手機開這個網頁處理）、MP4、WebM</span>
+          <span class="drop-sub">支援 MP4、WebM、iPhone 的 MOV／HEVC（iPhone 影片建議直接在手機上處理）</span>
         </div>
 
         <div id="queueBox" hidden>
@@ -238,7 +238,7 @@
 
         <label class="check upload-opt" id="driveOptWrap">
           <input type="checkbox" id="driveOpt" checked>
-          <span>同時把影片存到 Google 雲端（自動依「念的內容」建資料夾）</span>
+          <span>影片也存到 Google 雲端（依念的內容分資料夾）</span>
         </label>
         <p class="help" id="driveHint"></p>
 
@@ -262,7 +262,7 @@
       <!-- 辨識 -->
       <section class="rec-panel" id="tab-recog" role="tabpanel" aria-labelledby="tabbtn-recog" hidden>
         <h2 class="sr-only">辨識測試</h2>
-        <p class="rec-lede">錄或選一段新影片，系統跟資料庫裡所有範本比對，找出最像的內容並唸出來。</p>
+        <p class="rec-lede">錄或選一段影片，系統會跟資料庫裡的範本比對，唸出最像的內容。</p>
         <div class="pick-row">
           <label class="btn primary lg pick touch-only">
             <input type="file" accept="video/*" capture="user" id="recogRecord" hidden>
@@ -480,7 +480,7 @@
       const p = LR.parseVideoName(file.name);
       S.queue.push({ id: S.nextId++, file, label: p.label, speaker: p.speaker || bulkS, checked: !p.label, status: "pending", note: "" });
     }
-    if (vids.length > 1 && !bulkL) toast(`加入 ${vids.length} 段。勾選同一個內容的影片，在上方填「念的內容」後按「套用到勾選的」`, "info", 7000);
+    if (vids.length > 1 && !bulkL) toast(`加入 ${vids.length} 段。勾選念同一句的影片，填好「念的內容」再按「套用到勾選的」`, "info", 7000);
     renderQueue();
   }
   $("filesInput").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
@@ -721,7 +721,7 @@
       this.render();
       const n = R.items.length, bad = R.items.filter((q) => q.up.bad).length, secs = (performance.now() - R.t0) / 1000;
       $("upTitle").textContent = stopped ? `已停止：完成 ${R.done}／${n} 段`
-        : bad ? `完成 ${R.done} 段，${bad} 段沒存成功：原因寫在上面那一段旁邊，按「開始處理」會重試沒成功的`
+        : bad ? `完成 ${R.done} 段，${bad} 段沒存成功（原因寫在那一段旁邊）。按「開始處理」會重試沒成功的`
         : `${n} 段都存好了`;
       const sec = R.activeMs / 1000;
       $("upSub").textContent = R.done

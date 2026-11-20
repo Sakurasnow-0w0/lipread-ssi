@@ -36,7 +36,7 @@
   const UPLOAD_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,200}\/exec$/;
 
   const LR = (window.LR = { FPS, MAX_SECONDS, MAX_LABEL, MAX_SPEAKER, DIM, MAX_VIDEO_BYTES, events: new EventTarget() });
-  LR.BRAND = "唇語專題";
+  LR.BRAND = "無聲溝通專題";
   LR.BRAND_SUB = "無聲口型資料收集";
 
   // ───────────────────────── 小工具 ─────────────────────────

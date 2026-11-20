@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f3eee5">
-<title>系統架構｜唇語專題</title>
+<title>系統架構｜無聲溝通專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -40,7 +40,7 @@
     <section class="card reveal">
       <div class="card-h">
         <h2>心智圖</h2>
-        <p>五大部分與底下用到的技術。點任何方塊看說明。</p>
+        <p>五大部分與底下用到的技術。</p>
       </div>
       <div class="mindmap" id="mindmap">
         <svg class="mm-lines" id="mmLines" aria-hidden="true"></svg>
@@ -87,7 +87,7 @@
   // ───────── 內容 ─────────
   // 每個節點：title 標題、sub 一句話、what 是什麼、how 在本專題怎麼用、why 為什麼選它、files 相關檔案、limits 限制、links 參考
   const ROOT = {
-    id: "root", title: "無聲溝通系統", sub: "給失聲者用的唇語辨識",
+    id: "root", title: "無聲溝通系統", sub: "看嘴型辨識想說的話",
     what: "使用者對鏡頭無聲說出常用需求詞，系統辨識嘴型、轉成文字並用語音唸出來。屬於無聲語音介面（Silent Speech Interface）與視覺語音辨識（Visual Speech Recognition）。",
     how: "整個系統是一個網站：辨識在使用者的瀏覽器裡完成，後端只負責存資料。資料分成兩份：影片放 Google 雲端硬碟，口型數據放 GitHub 私有 repo。",
     why: "限定有限詞彙、個人化範本，是目前在專題規模下最可行的做法；任意句子的連續辨識連頂尖模型都還有明顯錯誤率。",
