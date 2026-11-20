@@ -189,6 +189,25 @@ select.input { padding: 7px 10px; font-size: 14px; width: auto; }
 .help { font-size: 13px; color: var(--muted); margin-top: 6px; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-2); cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+/* 自己畫勾選框：原生的在深色模式下沒勾時是實心深色方塊，看起來像已經勾了。
+   :where() 不加權重，各處原本設的大小照舊；勾選時的底色可用 --cb／--cb-ink 改 */
+:where(input[type=checkbox]:not([role=switch])) {
+  appearance: none; -webkit-appearance: none; margin: 0; flex: none;
+  width: 16px; height: 16px; position: relative; vertical-align: middle;
+  border: 1.5px solid var(--muted); border-radius: 4px; background: var(--surface);
+  cursor: pointer; transition: background-color .12s, border-color .12s;
+}
+:where(input[type=checkbox]:not([role=switch]))::before {
+  content: ""; position: absolute; inset: 16%; background: var(--cb-ink, var(--accent-ink));
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+  transform: scale(0); transition: transform .12s var(--ease);
+}
+:where(input[type=checkbox]:not([role=switch])):is(:checked, :indeterminate) { background: var(--cb, var(--accent)); border-color: var(--cb, var(--accent)); }
+:where(input[type=checkbox]:not([role=switch])):checked::before { transform: scale(1); }
+:where(input[type=checkbox]:not([role=switch])):indeterminate::before { clip-path: inset(40% 10%); transform: scale(1); }
+:where(input[type=checkbox]:not([role=switch])):hover:not(:checked):not(:disabled) { border-color: var(--ink-2); }
+:where(input[type=checkbox]:not([role=switch])):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:where(input[type=checkbox]:not([role=switch])):disabled { opacity: .5; cursor: not-allowed; }
 
 /* ───────── 按鈕 ───────── */
 .btn {
@@ -426,6 +445,8 @@ body.locked .dialog::backdrop { background: var(--page); backdrop-filter: none; 
 .admin-box { margin-top: 4px; }
 .admin-box > summary { cursor: pointer; font-size: 13px; color: var(--ink-2); padding: 4px 0; }
 .admin-box[open] > summary { margin-bottom: 10px; }
+.adv-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; vertical-align: 1px; }
+.admin-field { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
 .dialog .seg { display: flex; }
 .dialog .seg button { flex: 1; }
 .dialog.video-dlg video { width: 100%; display: block; background: #000; border-radius: 10px; max-height: 70vh; }
@@ -561,7 +582,7 @@ body.locked .dialog::backdrop { background: var(--page); backdrop-filter: none; 
 .tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .task { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); transition: background .15s; }
 .task:hover { background: var(--surface-2); }
-.task input[type=checkbox] { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--good); flex: none; cursor: pointer; }
+.task input[type=checkbox] { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--good); --cb: var(--good); --cb-ink: var(--surface); flex: none; cursor: pointer; }
 .task-body { flex: 1; min-width: 0; }
 .task-title { font-weight: 600; word-break: break-word; }
 .task.done .task-title { text-decoration: line-through; color: var(--muted); font-weight: 500; }
@@ -1164,7 +1185,7 @@ body.on-guide .col-side { display: none; }
 .pg-record .chip small { color: var(--ink-2); }
 .pg-record .qitem { border-radius: 8px; }
 .pg-record .qitem.sel { background: var(--surface); border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.pg-record .q-head input[type=checkbox] { accent-color: var(--ink); }
+.pg-record .q-head input[type=checkbox] { accent-color: var(--ink); --cb: var(--ink); --cb-ink: var(--page); }
 /* 辨識結果：跟鏡頭下的字幕條一樣，用楷體大字 */
 .pg-record .recog-result { border-top: 0; padding-top: 0; }
 .pg-record .recog-top { align-items: stretch; }
