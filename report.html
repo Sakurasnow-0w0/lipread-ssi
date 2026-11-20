@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f3eee5">
-<title>分析報告｜唇語專題</title>
+<title>分析報告｜無聲溝通專題</title>
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -52,7 +52,7 @@
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6"/></svg>
     </div>
     <h2 id="emptyTitle">還沒有資料來源</h2>
-    <p id="emptyText">輸入團隊通關碼讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。</p>
+    <p id="emptyText">輸入團隊通關碼讀取大家上傳的樣本，或選擇從資料 repo 下載的 data/samples 資料夾。</p>
     <div class="actions">
       <button class="btn primary" id="emptyConnect">輸入通關碼</button>
       <button class="btn" id="emptyLocal">讀取本機資料夾</button>
@@ -257,7 +257,7 @@
   // ───────── 讀資料 ─────────
   async function loadFromGitHub() {
     if (!LR.gh.connected()) {
-      empty("還沒有資料來源", "輸入團隊通關碼讀取大家上傳的樣本；或選擇從資料 repo clone 下來的 data/samples 資料夾。");
+      empty("還沒有資料來源", "輸入團隊通關碼讀取大家上傳的樣本，或選擇從資料 repo 下載的 data/samples 資料夾。");
       return;
     }
     if (S.busy) return;
@@ -750,7 +750,7 @@
     return [`| ${head.map(esc).join(" | ")} |`, `| ${head.map(() => "---").join(" | ")} |`, ...rows.map((r) => `| ${r.map(esc).join(" | ")} |`)].join("\n");
   }
   function buildReport() {
-    const out = [`# 唇語辨識分析報告（${new Date().toLocaleDateString("zh-TW")}）`, "", `資料來源：${S.source}`, "",
+    const out = [`# 口型辨識分析報告（${new Date().toLocaleDateString("zh-TW")}）`, "", `資料來源：${S.source}`, "",
       `- 樣本：${S.samples.length} 段、${S.labels.length} 種內容、${S.speakers.length} 位錄製者`];
     for (const mode of ["loo", "cross"]) {
       const sum = LR.summarize(S.results[mode], S.labels);
@@ -783,7 +783,7 @@
         rows.push([s.id, s.label, s.speaker, s.video.name, s.video.folder, s.video.driveId ? LR.drive.viewUrl(s.video.driveId) : "",
           q.duration ?? "", q.frames ?? "", q.missed ?? "", s.createdBy, s.createdAt, res(lr.get(s.id)), res(cr.get(s.id))]);
       }
-      LR.downloadText(`唇語樣本清單-${stamp()}.csv`, LR.toCsv(rows), "text/csv;charset=utf-8");
+      LR.downloadText(`口型樣本清單-${stamp()}.csv`, LR.toCsv(rows), "text/csv;charset=utf-8");
     },
     matrix() {
       const sum = LR.summarize(S.results[S.mode], S.labels);
@@ -806,7 +806,7 @@
       }
       LR.downloadText(`準確率-${stamp()}.csv`, LR.toCsv(rows), "text/csv;charset=utf-8");
     },
-    md() { LR.downloadText(`唇語分析報告-${stamp()}.md`, buildReport(), "text/markdown;charset=utf-8"); },
+    md() { LR.downloadText(`口型分析報告-${stamp()}.md`, buildReport(), "text/markdown;charset=utf-8"); },
     async copy() {
       try { await navigator.clipboard.writeText(buildReport()); toast("報告已複製（Markdown 格式），可直接貼進文件", "good"); }
       catch { toast("瀏覽器不允許複製到剪貼簿，請改用「報告（Markdown 檔）」", "bad"); }
@@ -814,7 +814,7 @@
     print() { document.querySelectorAll(".reveal").forEach((n) => n.classList.add("in")); setTimeout(() => window.print(), 50); },
     json() {
       const clean = S.samples.map((s) => { const o = Object.assign({}, s); delete o._path; delete o._sha; return o; });
-      LR.downloadText(`唇語原始資料-${stamp()}.json`, JSON.stringify(clean), "application/json");
+      LR.downloadText(`口型原始資料-${stamp()}.json`, JSON.stringify(clean), "application/json");
     },
   };
   $("exportMenu").addEventListener("click", (e) => {
