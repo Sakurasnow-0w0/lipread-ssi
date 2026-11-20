@@ -177,7 +177,7 @@
     {
       id: "data", title: "資料儲存", sub: "影片與數據分開放", color: 4,
       children: [
-        { id: "repo", title: "GitHub 私有 repo", sub: "lipread-ssi-data",
+        { id: "repo", title: "GitHub 私有 repo", sub: "只有協作者讀得到",
           what: "存口型數據（data/samples/）、手寫日誌（data/journal/）、日程（data/schedule.json）。",
           how: "每段影片一個 JSON：每格 20 維特徵＋嘴唇輪廓座標，沒有影像。每次新增、刪除都是一個 commit，誰改了什麼都看得到，也能從歷史還原。",
           why: "免費、有完整版本紀錄；資料是純文字，方便之後改用深度學習時直接拿來用。",
@@ -201,7 +201,7 @@
           why: "免費、免架設；私有 repo 要用 Pages 需要 GitHub Pro，所以程式 repo 設為公開、資料另放私有 repo。",
           links: [["GitHub Pages", "https://pages.github.com/"]] },
         { id: "split", title: "程式公開、資料私有", sub: "兩個 repo 分工",
-          what: "lipread-ssi（公開）只放網頁程式；lipread-ssi-data（私有）放所有資料。",
+          what: "公開 repo 只放網頁程式；另一個私有 repo 放所有資料。",
           how: "公開 repo 推送前都會掃描，確認沒有 token、密碼或資料夾 ID。所有密碼都在 Apps Script 的指令碼屬性。" },
         { id: "privacy", title: "個資保護", sub: "人臉影片的處理原則",
           what: "影片含人臉，屬於可識別個人的資料。",
@@ -230,7 +230,7 @@
     ["前端", "HTML／CSS／JavaScript", "無框架", "所有頁面、圖表、動畫", "*.html、assets/"],
     ["網站託管", "GitHub Pages", "—", "公開網址、HTTPS", "—"],
     ["後端", "Google Apps Script", "V8 執行環境", "存影片、代寫 GitHub、驗證身分", "apps-script/Code.gs"],
-    ["資料庫", "GitHub 私有 repo＋REST API", "API 2022-11-28", "口型數據、日誌、日程", "lipread-ssi-data"],
+    ["資料庫", "GitHub 私有 repo＋REST API", "API 2022-11-28", "口型數據、日誌、日程", "私有資料 repo"],
     ["影片儲存", "Google 雲端硬碟", "—", "原始影片，依內容分資料夾", "—"],
   ];
 
