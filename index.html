@@ -242,6 +242,16 @@
         </label>
         <p class="help" id="driveHint"></p>
 
+        <!-- 上傳進度：後端（Apps Script）不會回報傳了幾 %，只知道每一段「傳完了沒」。
+             實心＝已確定完成；斜紋＝傳送中，長度依前面幾段的實測速度估計 -->
+        <div class="up-prog" id="upProg" hidden>
+          <div class="up-head"><strong class="up-title" id="upTitle"></strong><span class="up-pct" id="upPct" aria-hidden="true"></span></div>
+          <p class="up-sub" id="upSub"></p>
+          <div class="up-bar" id="upBar" role="progressbar" aria-label="整體上傳進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+          <div class="up-legend" aria-hidden="true"><span class="sure">已完成</span><span class="est">傳送中（依實測速度估計）</span></div>
+          <p class="sr-only" id="upLive" aria-live="polite"></p>
+        </div>
+
         <div class="actions" style="margin-top:14px">
           <button class="btn primary lg" id="runUpload" disabled>開始處理</button>
           <button class="btn ghost danger" id="stopUpload" hidden>停止</button>
@@ -321,12 +331,37 @@
 
   // ───────── 分頁 ─────────
   const tabs = [...document.querySelectorAll(".tabs [data-tab]")];
+  // 分頁底下那條會滑動的墨色底線（裝飾用，報讀軟體看不到）
+  const tabBar = tabs.length ? tabs[0].parentElement : null;
+  const tabInk = tabBar ? el("span", { class: "tab-ink", "aria-hidden": "true" }) : null;
+  if (tabBar) { tabBar.append(tabInk); tabBar.classList.add("has-ink"); }
+  function moveTabInk() {
+    const b = tabs.find((x) => x.getAttribute("aria-selected") === "true");
+    if (!tabInk || !b || !b.offsetWidth) return;
+    tabInk.style.width = b.offsetWidth + "px";
+    tabInk.style.transform = `translateX(${b.offsetLeft}px)`;
+    // 第一次定位不要從最左邊滑過來
+    if (!tabInk.classList.contains("ready")) { void tabInk.offsetWidth; tabInk.classList.add("ready"); }
+  }
+  addEventListener("resize", moveTabInk);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveTabInk);
   function selectTab(name) {
+    const from = tabs.findIndex((b) => b.getAttribute("aria-selected") === "true");
+    const to = tabs.findIndex((b) => b.dataset.tab === name);
     for (const b of tabs) {
       const on = b.dataset.tab === name;
       b.setAttribute("aria-selected", String(on));
       $("tab-" + b.dataset.tab).hidden = !on;
     }
+    // 換分頁：內容從滑動的方向淡入（往右邊的分頁就從右邊進來）
+    const panel = $("tab-" + name);
+    panel.classList.remove("in");
+    if (from >= 0 && from !== to && !LR.reducedMotion()) {
+      panel.style.setProperty("--dir", to > from ? 1 : -1);
+      void panel.offsetWidth;
+      panel.classList.add("in");
+    }
+    moveTabInk();
     if (name !== "guide") { stopCam(); closeBoard(); }
     document.body.classList.toggle("on-guide", name === "guide");
     LR.store.set("sessionStorage", "lr-tab", name);
@@ -464,15 +499,18 @@
   drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("drag"); addFiles(e.dataTransfer.files); });
 
   const QSTATUS = {
-    pending: ["待處理", "muted"], running: ["分析中", "accent"], uploading: ["上傳中", "accent"],
-    done: ["完成", "good"], error: ["失敗", "bad"],
+    pending: ["待處理", "muted"], running: ["分析中", "accent"], ready: ["等待上傳", "muted"], uploading: ["上傳影片中", "accent"],
+    saving: ["存口型數據中", "accent"], done: ["完成", "good"], error: ["失敗", "bad"],
   };
+  // 處理中的狀態：不能改、不能移除
+  const BUSY = new Set(["running", "ready", "uploading", "saving"]);
 
   function renderQueue() {
     $("queueBox").hidden = !S.queue.length;
     const list = $("queue");
-    list.replaceChildren(...S.queue.map((q) => {
-      const locked = q.status === "running" || q.status === "uploading" || q.status === "done";
+    let fresh = 0;   // 這次新加進來的第幾個：一張一張放上去
+    list.replaceChildren(...S.queue.filter((q) => !q.leaving).map((q) => {
+      const locked = BUSY.has(q.status) || q.status === "done";
       const cb = el("input", { type: "checkbox", "aria-label": "勾選 " + q.file.name });
       cb.checked = q.checked; cb.disabled = locked;
       cb.addEventListener("change", () => { q.checked = cb.checked; renderSel(); });
@@ -484,15 +522,25 @@
       spk.addEventListener("input", () => { q.speaker = LR.cleanText(spk.value, LR.MAX_SPEAKER); });
       const [st, kind] = QSTATUS[q.status];
       const badge = el("span", { class: "badge " + kind, title: q.note || null, text: q.status === "error" ? `失敗：${q.note}` : (q.note && !locked ? q.note : st) });
+      // 狀態換了才翻一下（每次重畫都翻會很吵）
+      if (q.lastStatus && q.lastStatus !== q.status) badge.classList.add("changed");
+      q.lastStatus = q.status;
       q.badge = badge;
       const rm = el("button", { class: "icon-btn", type: "button", "aria-label": "移除 " + q.file.name, title: "移除", text: "×" });
-      rm.disabled = q.status === "running" || q.status === "uploading";
-      rm.addEventListener("click", () => { S.queue = S.queue.filter((x) => x !== q); renderQueue(); });
+      rm.disabled = BUSY.has(q.status);
+      rm.addEventListener("click", () => removeQueued([q]));
       const li = el("li", { class: "qitem" + (q.checked ? " sel" : "") + (!q.label ? " need" : "") + (q.status === "done" ? " done" : "") },
         el("div", { class: "q-head" }, cb,
           el("div", { class: "q-name" }, el("span", { class: "fname", title: q.file.name, text: q.file.name }), el("small", { text: LR.fmtSize(q.file.size) + (q.driveName ? `，雲端 ${q.driveName}` : "") })),
           badge, rm),
         el("div", { class: "q-fields" }, lab, spk));
+      if (!q.shown) { q.shown = true; li.classList.add("enter"); li.style.setProperty("--i", fresh++); }
+      q.upEl = null;
+      if (q.up && (q.up.sure || q.up.cur || q.status === "done")) {
+        q.upEl = { sure: el("i", { class: "sure" }), est: el("i", { class: "est" }) };
+        li.append(el("div", { class: "q-prog", "aria-hidden": "true" }, q.upEl.sure, q.upEl.est));
+        UP.paintItem(q);
+      }
       q.li = li;
       return li;
     }));
@@ -501,7 +549,7 @@
   }
 
   function renderSel() {
-    const selectable = S.queue.filter((q) => !["running", "uploading", "done"].includes(q.status));
+    const selectable = S.queue.filter((q) => !BUSY.has(q.status) && q.status !== "done");
     const n = selectable.filter((q) => q.checked).length;
     $("selCount").textContent = n ? `已勾選 ${n} 段` : "全選";
     $("checkAll").checked = n > 0 && n === selectable.length;
@@ -512,7 +560,7 @@
   }
   $("checkAll").addEventListener("change", () => {
     const v = $("checkAll").checked;
-    for (const q of S.queue) if (!["running", "uploading", "done"].includes(q.status)) q.checked = v;
+    for (const q of S.queue) if (!BUSY.has(q.status) && q.status !== "done") q.checked = v;
     renderQueue();
   });
   $("bulkApply").addEventListener("click", () => {
@@ -520,7 +568,7 @@
     if (!l && !s) { toast("請先在上方填「念的內容」或「錄製者」", "warn"); $("bulkLabel").focus(); return; }
     let n = 0;
     for (const q of S.queue) {
-      if (!q.checked || ["running", "uploading", "done"].includes(q.status)) continue;
+      if (!q.checked || BUSY.has(q.status) || q.status === "done") continue;
       if (l) q.label = l;
       if (s) q.speaker = s;
       q.checked = false; n++;
@@ -528,12 +576,168 @@
     renderQueue();
     toast(`已把 ${n} 段設為${l ? `「${l}」` : ""}${s ? `（錄製者 ${s}）` : ""}`, "good");
   });
-  $("bulkRemove").addEventListener("click", () => {
-    S.queue = S.queue.filter((q) => !q.checked || ["running", "uploading"].includes(q.status));
+  /** 從上傳清單移除：先把那幾項收起來，再重畫 */
+  async function removeQueued(items) {
+    items = items.filter((q) => !BUSY.has(q.status) && !q.leaving);
+    if (!items.length) return;
+    for (const q of items) {
+      q.leaving = true;
+      if (q.li) q.li.style.height = q.li.offsetHeight + "px";   // 先固定高度，才有東西可以收
+    }
+    void $("queue").offsetHeight;   // 讓瀏覽器先記下固定的高度，收起來才會有轉場
+    await Promise.all(items.map((q) => LR.animateOut(q.li, "leave", 260)));
+    S.queue = S.queue.filter((q) => !items.includes(q));
     renderQueue();
+  }
+  $("bulkRemove").addEventListener("click", () => removeQueued(S.queue.filter((q) => q.checked)));
+  $("clearDone").addEventListener("click", async () => {
+    await removeQueued(S.queue.filter((q) => q.status === "done"));
+    UP.hide();
   });
-  $("clearDone").addEventListener("click", () => { S.queue = S.queue.filter((q) => q.status !== "done"); renderQueue(); });
-  $("stopUpload").addEventListener("click", () => { S.stop = true; $("stopUpload").disabled = true; });
+  $("stopUpload").addEventListener("click", () => {
+    S.stop = true; $("stopUpload").disabled = true;
+    if (UP.run && UP.run.active) toast("正在傳的會傳完，其餘的先不處理", "info");
+  });
+
+  // ───────── 上傳進度 ─────────
+  // Apps Script 不會回報「傳了幾 %」：掛上 XMLHttpRequest 的 upload.onprogress 會讓瀏覽器先送 CORS 預檢（OPTIONS），
+  // Apps Script 不回應預檢，整個上傳就會失敗。所以網頁只知道每個請求「完成了沒」：
+  // 確定完成的部分畫實心；正在傳的部分依前面的實測速度估計（斜紋），最多估到 92%，等伺服器回覆才補滿。
+  const MB = 1024 * 1024;
+  const SAVE_W = 256 * 1024;            // 「存口型數據」這一步，折算成多少位元組的工作量（約等於傳 0.25 MB 的時間）
+  const GUESS_BPS = 0.35 * MB, GUESS_OVERHEAD = 2.5; // 還沒有實測值時的保守猜測：每秒 0.35 MB、每個請求另外 2.5 秒
+  const UP = {
+    run: null,
+    start(items, useDrive) {
+      if (this.run) clearInterval(this.run.timer);
+      for (const q of items) q.up = { w: (useDrive ? q.file.size : 0) + SAVE_W, vid: useDrive ? q.file.size : 0, sure: 0, cur: null, est: 0, bad: false };
+      const R = this.run = {
+        items, useDrive, total: items.reduce((a, q) => a + q.up.w, 0), sureW: 0, sureVid: 0, done: 0, rate: 0, vidRate: 0,
+        active: 0, activeMs: 0, last: performance.now(), t0: performance.now(), timer: 0, ended: false,
+      };
+      $("upBar").replaceChildren(...items.map((q) => {
+        q.seg = { box: el("span", { class: "seg", style: `flex-grow:${q.up.w}` }), sure: el("i", { class: "sure" }), est: el("i", { class: "est" }) };
+        q.seg.box.append(q.seg.sure, q.seg.est);
+        return q.seg.box;
+      }));
+      $("upProg").hidden = false;
+      $("upProg").classList.toggle("still", LR.reducedMotion());
+      $("upProg").classList.add("running");   // 上傳中黏在畫面底部，捲清單時也看得到
+      $("upLive").textContent = "";
+      R.timer = setInterval(() => this.render(), 250);
+      this.render();
+      return R;
+    },
+    begin(q, w, isVideo) {
+      const R = this.run;
+      if (!R || !q.up) return;
+      this.tick();
+      q.up.cur = { w, vid: !!isVideo, t0: performance.now() };
+      R.active++;
+      this.render();
+    },
+    end(q, ok) {
+      const R = this.run;
+      if (!R || !q.up || !q.up.cur) return;
+      this.tick();
+      if (ok) {
+        q.up.sure += q.up.cur.w; R.sureW += q.up.cur.w;
+        if (q.up.cur.vid) R.sureVid += q.up.cur.w;
+        // 速度只在「有請求完成」時更新：兩次完成之間數字不會一直往下掉，剩餘時間也會平順地倒數
+        const sec = R.activeMs / 1000;
+        if (sec > 0.3) { R.rate = R.sureW / sec; R.vidRate = R.sureVid / sec; }
+      } else q.up.bad = true;
+      q.up.cur = null; q.up.est = 0;
+      R.active--;
+      if (ok && q.up.sure >= q.up.w) {
+        R.done++;
+        $("upLive").textContent = `已完成 ${R.done}／${R.items.length} 段`;
+      }
+      this.render();
+    },
+    /** 只累計「有請求在跑」的時間：分析影片、等使用者的時間不算進速度 */
+    tick() {
+      const R = this.run, now = performance.now();
+      if (R.active > 0) R.activeMs += now - R.last;
+      R.last = now;
+    },
+    /** 實測：每秒完成多少工作量（含伺服器處理時間），取最近一次有請求完成時的值。還沒有任何請求完成時是 0 */
+    rate() { return this.run.rate || 0; },
+    paintItem(q) {
+      if (!q.up) return;
+      const w = q.up.w, sure = q.up.sure / w * 100, est = q.up.est / w * 100;
+      for (const t of [q.seg, q.upEl]) {
+        if (!t) continue;
+        t.sure.style.width = sure.toFixed(2) + "%";
+        t.est.style.left = sure.toFixed(2) + "%";
+        t.est.style.width = est.toFixed(2) + "%";
+      }
+      if (q.seg) {
+        q.seg.box.classList.toggle("moving", !!q.up.cur);
+        q.seg.box.classList.toggle("bad", q.up.bad && !q.up.cur);
+      }
+    },
+    render() {
+      const R = this.run;
+      if (!R) return;
+      this.tick();
+      const rate = this.rate(), now = performance.now();
+      let est = 0;
+      for (const q of R.items) {
+        const c = q.up.cur;
+        if (c) {
+          // 同時有幾個請求在跑，頻寬就分成幾份
+          const T = rate ? c.w * Math.max(R.active, 1) / rate : GUESS_OVERHEAD + c.w / GUESS_BPS;
+          q.up.est = c.w * 0.92 * (1 - Math.exp(-1.6 * ((now - c.t0) / 1000) / T));
+          est += q.up.est;
+        }
+        this.paintItem(q);
+      }
+      const pct = R.total ? Math.min(R.ended ? 100 : 99, Math.floor((R.sureW + est) / R.total * 100)) : 0;
+      const shown = R.ended ? Math.floor(R.sureW / R.total * 100) : pct;
+      $("upPct").textContent = shown + "%";
+      $("upBar").setAttribute("aria-valuenow", String(shown));
+      const n = R.items.length;
+      if (R.ended) return;
+      $("upTitle").textContent = R.useDrive ? `正在上傳 ${n} 段，已完成 ${R.done} 段` : `正在存 ${n} 段的口型數據，已完成 ${R.done} 段`;
+      const left = Math.max(R.total - R.sureW - est, 0);
+      const eta = rate ? `，約剩 ${fmtSecs(left / rate)}` : "";
+      if (R.useDrive) {
+        const vidTotal = R.items.reduce((a, q) => a + q.up.vid, 0);
+        $("upSub").textContent = R.vidRate
+          ? `已傳 ${LR.fmtSize(R.sureVid)}／${LR.fmtSize(vidTotal)}，平均每秒 ${(R.vidRate / MB).toFixed(2)} MB${eta}`
+          : `共 ${LR.fmtSize(vidTotal)}。第一段傳完後就能算出速度和剩餘時間`;
+      } else {
+        $("upSub").textContent = `已存 ${R.done}／${n} 段${eta}`;
+      }
+    },
+    finish(stopped) {
+      const R = this.run;
+      if (!R) return;
+      this.tick();
+      clearInterval(R.timer);
+      R.ended = true;
+      $("upProg").classList.remove("running");
+      this.render();
+      const n = R.items.length, bad = R.items.filter((q) => q.up.bad).length, secs = (performance.now() - R.t0) / 1000;
+      $("upTitle").textContent = stopped ? `已停止：完成 ${R.done}／${n} 段`
+        : bad ? `完成 ${R.done} 段，${bad} 段沒存成功：原因寫在上面那一段旁邊，按「開始處理」會重試沒成功的`
+        : `${n} 段都存好了`;
+      const sec = R.activeMs / 1000;
+      $("upSub").textContent = R.done
+        ? `花了 ${fmtSecs(secs)}${R.useDrive && R.sureVid && sec > 0.3 ? `，影片 ${LR.fmtSize(R.sureVid)}，平均每秒 ${(R.sureVid / sec / MB).toFixed(2)} MB` : ""}`
+        : "";
+      $("upLive").textContent = $("upTitle").textContent;
+    },
+    hide() {
+      if (this.run && !this.run.ended) return;
+      $("upProg").hidden = true;
+    },
+  };
+  function fmtSecs(s) {
+    s = Math.max(1, Math.round(s));
+    return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
+  }
 
   $("runUpload").addEventListener("click", () => {
     const todo = S.queue.filter((q) => q.status === "pending" || q.status === "error");
@@ -549,46 +753,78 @@
       S.stop = false;
       $("stopUpload").hidden = false; $("stopUpload").disabled = false;
       const offline = [];
-      let ok = 0, fail = 0;
+      let ok = 0, fail = 0, fatal = null;
+      const online = LR.gh.connected();
+      if (online) UP.start(todo, useDrive);
+      for (const q of todo) { q.status = "pending"; q.note = ""; q.checked = false; }
+      renderQueue();
+      // 網路那一半（上傳影片＋存口型數據）。每個 Apps Script 請求都有好幾秒的固定等待，
+      // 同時跑 2 段可以把等待疊在一起；分析影片要用同一個 <video>，所以還是一段一段來。
+      const send = async (q, r) => {
+        try {
+          let drive = null;
+          if (useDrive) {
+            q.status = "uploading"; renderQueue();
+            UP.begin(q, q.up.vid, true);
+            drive = await LR.drive.upload(q.file, q.label, q.speaker);
+            UP.end(q, true);
+            q.driveName = `${drive.folder}/`;
+          }
+          const sample = LR.newSample({ label: q.label, speaker: q.speaker, frames: r.frames, lips: r.lips, quality: r.quality, file: q.file, author: LR.whoami(), drive });
+          if (online) {
+            q.status = "saving"; renderQueue();
+            UP.begin(q, SAVE_W);
+            await saveOrDiscard(sample, drive);
+            UP.end(q, true);
+            S.samples.push(sample);
+          } else offline.push(sample);
+          q.status = "done"; ok++;
+        } catch (e) {
+          if (online) UP.end(q, false);
+          q.status = "error"; q.note = e.message; fail++;
+          if (e.status === 401 || e.status === 403) { fatal = fatal || e; S.stop = true; }
+        }
+        renderQueue();
+      };
+      const inflight = new Set();
       try {
-        setBadge("載入模型", "accent");
-        await LR.loadModel();
+        if (todo.some((q) => !q.pre)) { setBadge("載入模型", "accent"); await LR.loadModel(); }
         for (const q of todo) {
           if (S.stop) break;
-          q.status = "running"; q.note = ""; q.checked = false; renderQueue();
-          setBadge(q.label, "accent");
-          try {
-            // 引導錄影的影片在錄的當下就抓好口型了（只錄嘴巴的影片無法再偵測整張臉）
-            const r = q.pre || await LR.extract(q.file, {
-              video, canvas: overlay, onProgress, shouldStop: () => S.stop,
-            });
-            let drive = null;
-            if (useDrive) {
-              q.status = "uploading"; renderQueue();
-              drive = await LR.drive.upload(q.file, q.label, q.speaker);
-              q.driveName = `${drive.folder}/`;
+          let r = q.pre;
+          if (!r) {
+            q.status = "running"; renderQueue();
+            setBadge(q.label, "accent");
+            try {
+              r = await LR.extract(q.file, { video, canvas: overlay, onProgress, shouldStop: () => S.stop });
+            } catch (e) {
+              if (S.stop && /已停止/.test(e.message)) { q.status = "pending"; break; }
+              q.status = "error"; q.note = e.message; fail++;
+              if (online) q.up.bad = true;
+              renderQueue();
+              continue;
             }
-            const sample = LR.newSample({ label: q.label, speaker: q.speaker, frames: r.frames, lips: r.lips, quality: r.quality, file: q.file, author: LR.whoami(), drive });
-            if (LR.gh.connected()) { await saveOrDiscard(sample, drive); S.samples.push(sample); }
-            else offline.push(sample);
-            q.status = "done"; ok++;
-          } catch (e) {
-            if (S.stop && /已停止/.test(e.message)) { q.status = "pending"; break; }
-            q.status = "error"; q.note = e.message; fail++;
-            if (e.status === 401 || e.status === 403) { renderQueue(); throw e; }
           }
-          renderQueue();
+          q.status = "ready"; renderQueue();
+          while (inflight.size >= 2) await Promise.race(inflight);
+          if (S.stop) { q.status = "pending"; break; }
+          const p = send(q, r).finally(() => inflight.delete(p));
+          inflight.add(p);
         }
+        await Promise.all(inflight);
       } finally {
+        await Promise.allSettled(inflight);
         $("stopUpload").hidden = true;
         S.weights = null;
+        if (UP.run && !UP.run.ended) UP.finish(S.stop && !fatal);
         if (offline.length) {
           LR.download(`samples-${LR.newId()}.json`, JSON.stringify(offline));
           toast(`尚未登入，已把 ${offline.length} 段下載成 JSON 檔`, "warn");
         }
-        setBadge(S.stop ? "已停止" : fail ? "部分失敗" : "完成", S.stop || fail ? "warn" : "good");
+        setBadge(S.stop && !fatal ? "已停止" : fail ? "部分失敗" : "完成", S.stop || fail ? "warn" : "good");
         renderQueue(); renderLibrary();
       }
+      if (fatal) throw fatal;
       if (ok) toast(`完成 ${ok} 段${useDrive ? "（影片已存到雲端）" : ""}${fail ? `，失敗 ${fail} 段` : ""}`, fail ? "warn" : "good");
     }, () => setBadge("失敗", "bad"));
   });
@@ -1081,7 +1317,7 @@
   $("gRec").addEventListener("click", () => { if (G.recording) { G.stop = true; return; } recClick(); });
 
   function addTake(r, label, speaker) {
-    G.takes.push({ file: r.file, pre: r.pre, mouthOnly: r.mouthOnly, label, speaker, url: URL.createObjectURL(r.file) });
+    G.takes.push({ file: r.file, pre: r.pre, mouthOnly: r.mouthOnly, label, speaker, url: URL.createObjectURL(r.file), fresh: true });
     renderTakes();
   }
   function renderTakes() {
@@ -1092,8 +1328,18 @@
       const v = el("video", { src: t.url, muted: true, playsinline: true, preload: "metadata", class: "take-v", title: `${t.label}（錄製者 ${t.speaker}，${t.mouthOnly ? "只有嘴巴" : "完整畫面"}，${LR.fmtSize(t.file.size)}）` });
       v.addEventListener("click", () => { v.currentTime = 0; v.play().catch(() => {}); });
       const del = el("button", { class: "icon-btn", type: "button", "aria-label": `刪除第 ${i + 1} 段`, title: "刪除", text: "×" });
-      del.addEventListener("click", () => { URL.revokeObjectURL(t.url); G.takes.splice(i, 1); renderTakes(); });
-      return el("li", { class: "take" }, v, del);
+      const li = el("li", { class: "take" + (t.fresh ? " enter" : "") }, v, del);
+      t.fresh = false;
+      del.addEventListener("click", async () => {
+        if (t.leaving) return;
+        t.leaving = true;
+        await LR.animateOut(li, "leave", 200);
+        URL.revokeObjectURL(t.url);
+        const k = G.takes.indexOf(t);
+        if (k >= 0) G.takes.splice(k, 1);
+        renderTakes();
+      });
+      return li;
     }));
     updateCoach();
   }
