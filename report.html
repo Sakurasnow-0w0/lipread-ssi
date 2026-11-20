@@ -269,7 +269,7 @@
       if (r.bad) toast(`有 ${r.bad} 筆樣本格式不正確，已略過`, "warn");
       S.samples = r.samples;
       S.fromGitHub = true;
-      S.source = LR.mode() === "team" ? `團隊資料庫（${s.repo}）` : `GitHub ${s.owner}/${s.repo}（${s.branch} 分支）`;
+      S.source = LR.mode() === "team" ? "團隊資料庫" : `GitHub ${s.owner}/${s.repo}（${s.branch} 分支）`;
       await analyze(0.25);
     } catch (e) {
       toast(e.message, "bad", 8000);

@@ -1561,7 +1561,7 @@
       E("div", { class: "welcome-mark", "aria-hidden": "true" }, talkingLips()),
       E("p", { class: "eyebrow brand-ink", text: LR.BRAND }),
       E("h2", { class: "welcome-title", text: "幫我們錄幾句「無聲的話」" }),
-      E("p", { class: "welcome-lede", text: "這是大學專題「給失聲者用的無聲溝通系統」：讓電腦從嘴型看懂說不出聲音的人想說什麼。你只要對著鏡頭、不出聲地念幾個短句。" }),
+      E("p", { class: "welcome-lede", text: "這是大學專題「無聲溝通系統」：讓電腦從嘴型看懂沒有出聲的話。你只要對著鏡頭、不出聲地念幾個短句。" }),
       E("ul", { class: "welcome-points" },
         E("li", null, LR.icon("micoff", 18), E("span", null, E("strong", { text: "不錄聲音" }), "，預設只存嘴巴特寫")),
         E("li", null, LR.icon("clock", 18), E("span", null, E("strong", { text: "一句約 3 秒" }), "，跟著畫面提示念就好")),
@@ -1583,8 +1583,8 @@
     const devBox = E("div", null,
       E("div", { class: "dev-head" }, E("strong", { text: "開發者登入（GitHub token）" }), backToTeam),
       E("div", { class: "field-row" },
-        field("setOwner", "帳號／組織", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
-        field("setRepo", "資料 Repo", { autocomplete: "off", spellcheck: "false", maxlength: "100" })),
+        field("setOwner", "帳號／組織", { autocomplete: "off", spellcheck: "false", maxlength: "100", placeholder: "GitHub 帳號或組織" }),
+        field("setRepo", "資料 Repo", { autocomplete: "off", spellcheck: "false", maxlength: "100", placeholder: "存資料的 repo" })),
       field("setBranch", "分支", { autocomplete: "off", spellcheck: "false", maxlength: "100" }),
       E("div", { class: "field" },
         E("label", { for: "setToken" }, "Personal access token　", tokenLink),
@@ -1615,11 +1615,13 @@
     const $f = (id) => form.querySelector("#" + id);
 
     let tab = "team";
+    // 開發者入口預設不出現（不在登入框秀出帳號與資料 repo）：網址帶 ?dev，或已經用 token 登入時才顯示
+    let devEnabled = false;
     const setTab = (m) => {
       tab = m;
       teamBox.hidden = m !== "team";
       devBox.hidden = m !== "github";
-      toDev.hidden = m === "github";
+      toDev.hidden = m === "github" || !devEnabled;
       adminWrap.hidden = m !== "team";
       if (m === "github") advBox.open = true;
       dlg.querySelector(".btn-label").textContent = m === "team" ? (LR.mode() ? "儲存" : "登入") : "連線並儲存";
@@ -1659,8 +1661,10 @@
       welcome.hidden = !first;
       title.textContent = first ? "輸入通關碼開始" : "登入設定";
       sub.textContent = first ? "通關碼請向專題負責人索取，不需要註冊帳號。" : "可以改名字或登出；管理員密碼在「進階設定」裡。";
-      $f("setOwner").value = s.owner;
-      $f("setRepo").value = s.repo;
+      devEnabled = LR.mode() === "github" || new URLSearchParams(location.search).has("dev");
+      // 只有已經用 token 連線的人才帶入原本的帳號與 repo；新開的表單一律空白，由開發者自己輸入
+      $f("setOwner").value = LR.mode() === "github" ? s.owner : "";
+      $f("setRepo").value = LR.mode() === "github" ? s.repo : "";
       $f("setBranch").value = s.branch;
       $f("setToken").value = "";
       $f("setUpload").value = s.uploadUrl || "";
