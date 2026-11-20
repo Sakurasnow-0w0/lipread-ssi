@@ -1573,11 +1573,7 @@
     const teamBox = E("div", null,
       field("setName", "你的名字或代號", { autocomplete: "nickname", maxlength: "30", placeholder: "例如：小明、A" }, "會記在上傳紀錄裡；錄影時也會預先帶入。"),
       field("setCode", "團隊通關碼", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100", placeholder: "向專題負責人索取" }),
-      E("details", { class: "admin-box" },
-        E("summary", { text: "我是管理員（需要刪除資料）" }),
-        field("setAdmin", "管理員密碼", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100" }, "只會記在這次開啟的分頁，關掉就要重新輸入。")
-      ),
-      E("label", { class: "check", style: "margin-top:12px" }, rememberTeam, E("span", { text: "在這台裝置記住通關碼（公用電腦請勿勾選）" }))
+      E("label", { class: "check", style: "margin-top:12px" }, rememberTeam, E("span", { text: "記住通關碼（公用電腦請勿勾選）" }))
     );
 
     // 開發者（志願者用不到，收在「進階」裡）
@@ -1599,8 +1595,13 @@
     );
 
     const toDev = E("button", { class: "linkish", type: "button", text: "我是開發者，用 GitHub token 登入" });
+    // 管理員密碼：大多數人用不到，跟開發者登入一起收在「進階設定」；已經是管理員時摘要旁會標出來
+    const adminWrap = E("div", { class: "admin-field" },
+      field("setAdmin", "管理員密碼（要刪除資料才需要）", { type: "password", autocomplete: "off", spellcheck: "false", maxlength: "100" }, "只記在這次開啟的分頁，關掉就要重新輸入；勾「記住」也一樣。"));
+    const adminTag = E("span", { class: "adv-tag", text: "目前是管理員", hidden: true });
     const advBox = E("details", { class: "admin-box adv-box" },
-      E("summary", { text: "進階設定" }),
+      E("summary", null, "進階設定", adminTag),
+      adminWrap,
       field("setUpload", "後端服務網址（Google Apps Script）", { class: "input mono", autocomplete: "off", spellcheck: "false", placeholder: "https://script.google.com/macros/s/…/exec" }, "通常不用改，網站已經預設好了。"),
       toDev);
 
@@ -1619,6 +1620,7 @@
       teamBox.hidden = m !== "team";
       devBox.hidden = m !== "github";
       toDev.hidden = m === "github";
+      adminWrap.hidden = m !== "team";
       if (m === "github") advBox.open = true;
       dlg.querySelector(".btn-label").textContent = m === "team" ? (LR.mode() ? "儲存" : "登入") : "連線並儲存";
       clearErrors();
@@ -1656,7 +1658,7 @@
       dlg.classList.toggle("first", first);
       welcome.hidden = !first;
       title.textContent = first ? "輸入通關碼開始" : "登入設定";
-      sub.textContent = first ? "通關碼請向專題負責人索取，不需要註冊帳號。" : "可以改名字、切換成管理員，或登出。";
+      sub.textContent = first ? "通關碼請向專題負責人索取，不需要註冊帳號。" : "可以改名字或登出；管理員密碼在「進階設定」裡。";
       $f("setOwner").value = s.owner;
       $f("setRepo").value = s.repo;
       $f("setBranch").value = s.branch;
@@ -1666,6 +1668,10 @@
       $f("setCode").value = "";
       $f("setCode").placeholder = t ? "已記住（留空沿用）" : "向專題負責人索取";
       $f("setAdmin").value = "";
+      const isAdmin = LR.mode() === "team" && !!LR.team.adminCode();
+      $f("setAdmin").placeholder = isAdmin ? "已是管理員（留空沿用）" : "";
+      adminTag.hidden = !isAdmin;
+      advBox.open = isAdmin;
       rememberDev.checked = LR.settings.remembered();
       rememberTeam.checked = t ? LR.team.remembered() : false;
       btnOff.hidden = !LR.mode();
@@ -1709,7 +1715,8 @@
         if (tab === "team") {
           const name = LR.cleanText($f("setName").value, 30);
           const code = $f("setCode").value.trim() || (LR.team.get() || {}).code || "";
-          const admin = $f("setAdmin").value.trim();
+          // 已經是管理員、這次沒重填：沿用原本的管理員密碼，改名字不會被降成一般成員
+          const admin = $f("setAdmin").value.trim() || LR.team.adminCode();
           if (!code) return fail("請輸入團隊通關碼", "setCode");
           if (!uploadUrl) return fail("網站沒有設定後端服務網址，請聯絡專題負責人");
           LR.settings.save(Object.assign({}, cur, { uploadUrl }), LR.settings.token(), LR.settings.remembered());
