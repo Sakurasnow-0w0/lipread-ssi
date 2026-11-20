@@ -69,6 +69,19 @@
   LR.isVideoFile = (f) => !!f && (/^video\//.test(f.type) || /\.(mp4|m4v|mov|qt|webm|mkv|avi|3gp)$/i.test(f.name));
   LR.isTouch = () => window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   LR.reducedMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /**
+   * 加上離場用的 class，等動畫或轉場跑完再 resolve（例如刪除清單項目、關閉視窗）。
+   * 使用者開了「減少動態」就立刻 resolve；動畫沒觸發時最多等 ms＋80 毫秒，不會卡住。
+   */
+  LR.animateOut = (node, cls, ms = 260) => new Promise((resolve) => {
+    if (!node || LR.reducedMotion()) { resolve(); return; }
+    let done = false;
+    const go = (e) => { if (e && e.target !== node) return; if (!done) { done = true; resolve(); } };
+    node.addEventListener("animationend", go);
+    node.addEventListener("transitionend", go);
+    node.classList.add(cls);
+    setTimeout(go, ms + 80);
+  });
   LR.fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB");
   // CSV：加 BOM 讓 Excel 正確顯示中文；開頭是 = + - @ 的儲存格加 ' 防止公式注入
   LR.toCsv = (rows) => "﻿" + rows.map((r) => r.map((v) => {
@@ -212,6 +225,19 @@
       const dlg = E("dialog", { class: "dialog confirm", "aria-labelledby": "lrConfirmTitle" }, form);
       document.body.append(dlg);
       dlg.addEventListener("close", () => { resolve(dlg.returnValue === "ok"); dlg.remove(); });
+      // 關閉時也有動畫：先讓視窗滑下去，再真的關掉（減少動態時立刻關）
+      let closing = false;
+      const shut = (value) => {
+        if (closing) return;
+        closing = true;
+        LR.animateOut(dlg, "closing", 200).then(() => dlg.close(value));
+      };
+      form.addEventListener("submit", (e) => {
+        if (!e.submitter) return; // 很舊的瀏覽器拿不到按了哪個鍵：照原生行為直接關
+        e.preventDefault();
+        shut(e.submitter.value === "ok" ? "ok" : "cancel");
+      });
+      dlg.addEventListener("cancel", (e) => { e.preventDefault(); shut("cancel"); });
       dlg.showModal();
       (input || (recommendCancel ? cancelBtn : okBtn)).focus();
     });
@@ -743,6 +769,7 @@
     disconnect() {
       store.del("sessionStorage", TKEY);
       store.del("localStorage", TKEY);
+      LR.blobStore.clear();
     },
     valid(s) { return NAME_RE.test(s.owner || "") && NAME_RE.test(s.repo || "") && BRANCH_RE.test(s.branch || ""); },
     validUploadUrl(u) { return !u || UPLOAD_URL_RE.test(u); },
@@ -776,6 +803,7 @@
       const s = LR.session.get();
       if (s) LR.drive.raw({ action: "logout", session: s.t }, {}).catch(() => {});
       LR.session.clear();
+      LR.blobStore.clear();
       store.del("localStorage", TEAM_KEY); store.del("sessionStorage", TEAM_KEY); store.del("sessionStorage", ADMIN_KEY);
     },
     adminCode() { return store.get("sessionStorage", ADMIN_KEY) || ""; },
@@ -1054,20 +1082,98 @@
     }
   };
 
+  // ── 樣本／日誌內容的快取（依 GitHub blob 的 sha） ──
+  // sha 是內容的雜湊：同一個 sha 的內容永遠一樣，所以快取不會讀到舊資料。
+  // 存在 IndexedDB：換分頁、關掉再開都還在，第二次打開只要抓新的樣本。
+  // 登出時整個清掉；每次讀清單時，已經不在清單裡的（被刪除的樣本）也一起清掉。
+  // IndexedDB 不能用（私密瀏覽、被封鎖）時只放記憶體，跟關掉分頁就沒了的舊行為一樣。
   const blobCache = new Map();
+  const IDB_NAME = "lr-cache", IDB_STORE = "blobs";
+  let idbOpen = null;
+  function idb() {
+    if (!idbOpen) {
+      idbOpen = new Promise((resolve) => {
+        try {
+          const req = indexedDB.open(IDB_NAME, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+          req.onblocked = () => resolve(null);
+        } catch { resolve(null); }
+      });
+    }
+    return idbOpen;
+  }
+  /** 開一個交易做事；任何錯誤都當作「沒有快取」，不影響正常讀取 */
+  async function idbRun(mode, fn) {
+    const db = await idb();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, mode);
+        const out = fn(tx.objectStore(IDB_STORE));
+        tx.oncomplete = () => resolve(out);
+        tx.onerror = tx.onabort = () => resolve(null);
+      } catch { resolve(null); }
+    });
+  }
+  // 舊版放在 sessionStorage 的快取（樣本多時會塞爆）：清掉
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) { const k = sessionStorage.key(i); if (k && k.startsWith("lr-blob:")) sessionStorage.removeItem(k); }
+  } catch { /* 封鎖儲存時忽略 */ }
+
+  LR.blobStore = {
+    /** 把 IndexedDB 裡有的先搬進記憶體。kind："s" 樣本、"j" 日誌 */
+    async warm(kind, shas) {
+      const want = shas.filter((sha) => !blobCache.has(sha));
+      if (!want.length) return;
+      const got = await idbRun("readonly", (st) => {
+        const res = new Map();
+        for (const sha of want) {
+          const r = st.get(kind + ":" + sha);
+          r.onsuccess = () => { if (typeof r.result === "string") res.set(sha, r.result); };
+        }
+        return res;
+      });
+      if (!got) return;
+      for (const [sha, text] of got) {
+        try { if (text.length <= MAX_SAMPLE_BYTES) blobCache.set(sha, JSON.parse(text)); } catch { /* 壞掉的快取當作沒有 */ }
+      }
+    },
+    put(kind, sha, text) { idbRun("readwrite", (st) => { st.put(text, kind + ":" + sha); }); },
+    /** 清掉已經不在清單裡的（例如被刪除的樣本） */
+    async prune(kind, keep) {
+      await idbRun("readwrite", (st) => {
+        const r = st.getAllKeys();
+        r.onsuccess = () => {
+          for (const k of r.result || []) {
+            if (typeof k === "string" && k.startsWith(kind + ":") && !keep.has(k.slice(kind.length + 1))) st.delete(k);
+          }
+        };
+      });
+    },
+    /** 登出時呼叫：記憶體和 IndexedDB 都清空 */
+    clear() {
+      blobCache.clear();
+      return idbRun("readwrite", (st) => { st.clear(); });
+    },
+  };
 
   function cachedBlob(sha) {
-    if (blobCache.has(sha)) return blobCache.get(sha);
-    const text = store.get("sessionStorage", "lr-blob:" + sha);
-    if (!text) return null;
-    try { const o = JSON.parse(text); blobCache.set(sha, o); return o; } catch { return null; }
+    return blobCache.has(sha) ? blobCache.get(sha) : null;
   }
-  function putBlob(sha, text) {
+  function putBlob(sha, text, kind) {
     if (text.length > MAX_SAMPLE_BYTES) throw new Error("樣本檔太大");
     const o = JSON.parse(text);
     blobCache.set(sha, o);
-    store.set("sessionStorage", "lr-blob:" + sha, text);
+    LR.blobStore.put(kind || "s", sha, text);
     return o;
+  }
+  /** 讀清單後：先從 IndexedDB 補進記憶體，清單完整時順便清掉已刪除的 */
+  async function syncCache(kind, entries, truncated) {
+    const shas = entries.map((e) => e.sha);
+    await LR.blobStore.warm(kind, shas);
+    if (!truncated) LR.blobStore.prune(kind, new Set(shas));
   }
 
   // 通關碼模式：經後端服務讀寫
@@ -1075,6 +1181,7 @@
     async loadSamples(onProgress) {
       const l = await LR.drive.call({ action: "list" });
       const entries = (l.entries || []).filter((e) => SAMPLE_PATH_RE.test(e.path || "") && /^[0-9a-f]{40}$/.test(e.sha || ""));
+      await syncCache("s", entries, !!l.truncated);
       const need = entries.filter((e) => !cachedBlob(e.sha)).map((e) => e.sha);
       let done = entries.length - need.length;
       if (onProgress) onProgress(done, entries.length);
@@ -1086,7 +1193,7 @@
           const r = await LR.drive.call({ action: "blobs", shas });
           for (const sha of shas) {
             const b64 = r.blobs && r.blobs[sha];
-            if (b64) { try { putBlob(sha, b64decodeUtf8(b64)); } catch { /* 壞檔略過 */ } }
+            if (b64) { try { putBlob(sha, b64decodeUtf8(b64), "s"); } catch { /* 壞檔略過 */ } }
           }
           done += shas.length;
           if (onProgress) onProgress(done, entries.length);
@@ -1121,11 +1228,12 @@
     async loadJournal() {
       const l = await LR.drive.call({ action: "list", kind: "journal" });
       const entries = (l.entries || []).filter((e) => /^data\/journal\/[A-Za-z0-9_-]{1,80}\.json$/.test(e.path || "") && /^[0-9a-f]{40}$/.test(e.sha || ""));
+      await syncCache("j", entries, !!l.truncated);
       const need = entries.filter((e) => !cachedBlob(e.sha)).map((e) => e.sha);
       for (let i = 0; i < need.length; i += 25) {
         const shas = need.slice(i, i + 25);
         const r = await LR.drive.call({ action: "blobs", shas });
-        for (const sha of shas) if (r.blobs && r.blobs[sha]) { try { putBlob(sha, b64decodeUtf8(r.blobs[sha])); } catch { /* 壞檔略過 */ } }
+        for (const sha of shas) if (r.blobs && r.blobs[sha]) { try { putBlob(sha, b64decodeUtf8(r.blobs[sha]), "j"); } catch { /* 壞檔略過 */ } }
       }
       return entries.map((e) => {
         const o = cachedBlob(e.sha);
@@ -1211,13 +1319,14 @@
       const hit = cachedBlob(sha);
       if (hit) return hit;
       const b = await this.request(`git/blobs/${sha}`);
-      return putBlob(sha, b64decodeUtf8(b.content || ""));
+      return putBlob(sha, b64decodeUtf8(b.content || ""), "s");
     },
 
     /** 讀出全部樣本。 */
     async loadSamples(onProgress) {
       if (LR.mode() === "team") return viaTeam.loadSamples(onProgress);
       const { entries, truncated } = await this.listEntries();
+      await syncCache("s", entries, truncated);
       const out = [];
       let done = 0, bad = 0;
       const queue = entries.slice();

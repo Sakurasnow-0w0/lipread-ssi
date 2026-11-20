@@ -1168,3 +1168,88 @@ body.on-guide .col-side { display: none; }
 .pg-record .meter-bar { background: var(--ink); }
 .pg-record .stats div { background: var(--surface); }
 .pg-record .col-side .recent li { border-top-color: var(--line-strong); }
+
+/* ═════════ 上傳進度（錄影頁）═════════
+ * 後端不會回報「傳了幾 %」，所以分兩層：實心＝伺服器已回覆完成；斜紋＝傳送中，長度依實測速度估計。
+ * 整體長條每一格是一段影片，格子寬度＝那段的工作量（影片越大格子越寬）。失敗用空心虛線，不用紅色（紅色只留給「錄」）。 */
+.up-prog { background: var(--board); border-radius: 12px; padding: 14px 14px 12px; margin-top: 14px; }
+.up-prog.running { position: sticky; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 5; box-shadow: 0 -2px 0 var(--page), 0 8px 24px rgba(0, 0, 0, 0.16); }
+.up-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.up-title { font-size: 15px; line-height: 1.4; }
+.up-pct { font-size: 26px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
+.up-sub { margin: 6px 0 10px; font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; min-height: 1.5em; }
+.up-bar { display: flex; gap: 3px; height: 14px; }
+.up-bar .seg { position: relative; flex: 1 1 0; min-width: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+.up-bar .seg i, .q-prog i { position: absolute; top: 0; bottom: 0; left: 0; width: 0; }
+.up-bar .sure, .q-prog .sure { background: var(--ink); transition: width .3s var(--ease); }
+.up-bar .est, .q-prog .est { background: repeating-linear-gradient(-45deg, var(--ink) 0 4px, transparent 4px 8px); opacity: .45; transition: width .25s linear; }
+.up-bar .seg.moving .est { background-size: 11.31px 11.31px; animation: up-stripes .9s linear infinite; }
+@keyframes up-stripes { to { background-position: 11.31px 0; } }
+.up-bar .seg.bad { background: transparent; outline: 2px dashed var(--ink-2); outline-offset: -2px; }
+.up-prog.still .seg.moving .est { animation: none; }
+.up-prog:not(.running) .up-legend { display: none; }
+.up-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.up-legend span::before { content: ""; display: inline-block; width: 16px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--ink); }
+.up-legend .est::before { background: repeating-linear-gradient(-45deg, var(--ink) 0 3px, transparent 3px 6px); opacity: .6; }
+.q-prog { position: relative; height: 4px; margin-top: 8px; border-radius: 2px; overflow: hidden; background: var(--surface-2); }
+.up-prog:not([hidden]) { animation: rec-pane-in .32s var(--ease); }
+
+/* 關閉視窗：往下滑並淡出（全站共用；LR.animateOut 會等它跑完才真的關） */
+.dialog.closing { animation: dlg-out .2s var(--ease) forwards; }
+.dialog.closing::backdrop { animation: dlg-fade .2s var(--ease) reverse forwards; }
+@keyframes dlg-out { to { opacity: 0; transform: translateY(16px); } }
+@keyframes dlg-fade { from { opacity: 0; } }
+
+/* ═════════ 錄影頁的互動動畫：實體詞卡 ═════════
+ * 像按在溝通板上的護貝詞卡：按下去會沉、底邊變薄；不往上浮、不發光。
+ * 新的項目是「放上」板子（從上方一點點落下），刪除時收起來。
+ * 「減少動態」由上面的 prefers-reduced-motion 規則整個關掉；JS 那邊用 LR.reducedMotion() 跳過等待。 */
+.pg-record { --t-press: 90ms; --t-move: 260ms; --t-enter: 320ms; --settle: cubic-bezier(.3, 1.3, .6, 1); --edge: var(--line-strong); --edge-ink: color-mix(in srgb, var(--accent) 55%, #000); }
+
+/* 按鈕 */
+.pg-record .btn { transition: transform var(--t-press) var(--ease), box-shadow var(--t-press) var(--ease), background .15s, border-color .15s, color .15s; }
+.pg-record .btn:not(.ghost):not(:disabled) { box-shadow: 0 3px 0 var(--edge); }
+.pg-record .btn.primary:not(:disabled), .pg-record .btn.primary:hover:not(:disabled) { box-shadow: 0 3px 0 var(--edge-ink); }
+.pg-record .btn:hover:not(:disabled) { transform: none; }
+.pg-record .btn:not(.ghost):active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 var(--edge); transition-duration: 40ms; }
+.pg-record .btn.ghost:active:not(:disabled) { transform: translateY(1px); }
+
+/* 詞卡：按下去沉一點；被選中時外框收緊落定 */
+.pg-record .rec-tile { transition: transform var(--t-press) var(--ease), box-shadow var(--t-move) var(--ease); }
+.pg-record .rec-tile:active { transform: translateY(2px) scale(.98); }
+.pg-record .rec-tile[aria-pressed="true"] { animation: rec-tile-pick var(--t-enter) var(--settle); }
+@keyframes rec-tile-pick { from { box-shadow: inset 0 0 0 7px var(--ink); } }
+
+/* 開關：圓鈕像磁鐵片滑過去，最後稍微過頭再落定；按住時圓鈕微縮 */
+.pg-record .rec-switch .knob::after { transition: translate var(--t-move) var(--settle), scale var(--t-press) var(--ease); }
+.pg-record .rec-switch:active .knob::after { scale: .85; }
+
+/* 分頁：一條墨色底線滑到選中的分頁，內容從滑動的方向淡入 */
+.pg-record .rec-head .tabs { position: relative; }
+.pg-record .rec-head .tabs.has-ink button[aria-selected="true"] { border-bottom-color: transparent; }
+.tab-ink { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--ink); border-radius: 3px 3px 0 0; pointer-events: none; }
+.tab-ink.ready { transition: transform var(--t-move) var(--ease), width var(--t-move) var(--ease); }
+.rec-panel.in { animation: rec-pane-in var(--t-enter) var(--ease); }
+@keyframes rec-pane-in { from { opacity: 0; transform: translateX(calc(var(--dir, 0) * 16px)); } }
+
+/* 上傳清單：新的放上來、刪掉的收起來、狀態換了會翻一下 */
+.pg-record .qitem.enter { animation: rec-place var(--t-enter) var(--settle) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes rec-place { from { opacity: 0; transform: translateY(-10px) scale(1.02); } }
+.pg-record .qitem.leave { overflow: hidden; opacity: 0; transform: scale(.98); height: 0 !important; padding-top: 0; padding-bottom: 0; border-width: 0; margin-bottom: -8px;
+  transition: height var(--t-move) var(--ease), opacity .18s, transform .18s, padding var(--t-move) var(--ease), margin var(--t-move) var(--ease); }
+.pg-record .qitem .badge.changed { animation: rec-badge var(--t-enter) var(--settle); }
+@keyframes rec-badge { from { opacity: 0; transform: scale(.6); } }
+
+/* 已錄好的縮圖：只有新錄的那段會「放上來」，刪掉時縮小淡出 */
+.take { animation: none; }
+.take.enter { animation: rec-pop .3s var(--spring); }
+.take.leave { transition: transform .2s var(--ease), opacity .2s; transform: scale(.6); opacity: 0; }
+
+/* 確認視窗：從下面浮上來，背景慢慢暗下去 */
+.pg-record .dialog:not(.drawer)[open] { animation: rec-dlg-up var(--t-enter) var(--ease); }
+.pg-record .dialog:not(.drawer)[open]::backdrop { animation: dlg-fade var(--t-enter) var(--ease); }
+@keyframes rec-dlg-up { from { opacity: 0; transform: translateY(28px); } }
+/* 「減少動態」：* 選不到 ::backdrop，這裡另外關掉 */
+@media (prefers-reduced-motion: reduce) {
+  .dialog::backdrop { animation: none !important; }
+}
