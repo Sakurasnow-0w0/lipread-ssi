@@ -199,11 +199,9 @@
       </section>
 
       <!-- 上傳（可多段） -->
-      <section class="card" id="tab-upload" role="tabpanel" aria-labelledby="tabbtn-upload" hidden>
-        <div class="card-h">
-          <h2>上傳影片</h2>
-          <p>可以一次選很多段。一段只念一句、1–3 秒；正面、光線均勻，開頭先閉嘴約半秒。</p>
-        </div>
+      <section class="rec-panel" id="tab-upload" role="tabpanel" aria-labelledby="tabbtn-upload" hidden>
+        <h2 class="sr-only">上傳影片</h2>
+        <p class="rec-lede">可以一次選很多段。一段只念一句、1–3 秒；正面、光線均勻，開頭先閉嘴約半秒。</p>
 
         <div class="pick-row">
           <label class="btn primary lg pick touch-only">
@@ -252,11 +250,9 @@
       </section>
 
       <!-- 辨識 -->
-      <section class="card" id="tab-recog" role="tabpanel" aria-labelledby="tabbtn-recog" hidden>
-        <div class="card-h">
-          <h2>辨識測試</h2>
-          <p>錄或選一段新影片，系統跟資料庫裡所有範本比對，找出最像的內容並唸出來。</p>
-        </div>
+      <section class="rec-panel" id="tab-recog" role="tabpanel" aria-labelledby="tabbtn-recog" hidden>
+        <h2 class="sr-only">辨識測試</h2>
+        <p class="rec-lede">錄或選一段新影片，系統跟資料庫裡所有範本比對，找出最像的內容並唸出來。</p>
         <div class="pick-row">
           <label class="btn primary lg pick touch-only">
             <input type="file" accept="video/*" capture="user" id="recogRecord" hidden>
@@ -297,7 +293,7 @@
       <details class="card fold" open data-fold>
         <summary class="card-h row">
           <h2>最近上傳</h2>
-          <a class="link" href="report.html">看分析報告 →</a>
+          <a class="link" href="report.html">看分析報告</a>
         </summary>
         <ul class="recent" id="recentList"></ul>
       </details>
@@ -382,7 +378,7 @@
     } else {
       list.replaceChildren(...recent.map((s) => el("li", null,
         el("div", null, el("strong", { text: s.label }),
-          el("div", { class: "meta", text: `錄製者 ${s.speaker || "—"}${s.createdBy ? "・" + s.createdBy : ""}${s.video.driveId ? "・影片在雲端" : ""}` })),
+          el("div", { class: "meta", text: `錄製者 ${s.speaker || "—"}${s.createdBy ? "，" + s.createdBy : ""}${s.video.driveId ? "，影片在雲端" : ""}` })),
         el("time", { datetime: s.createdAt, text: LR.fmtDate(s.createdAt) })
       )));
     }
@@ -494,7 +490,7 @@
       rm.addEventListener("click", () => { S.queue = S.queue.filter((x) => x !== q); renderQueue(); });
       const li = el("li", { class: "qitem" + (q.checked ? " sel" : "") + (!q.label ? " need" : "") + (q.status === "done" ? " done" : "") },
         el("div", { class: "q-head" }, cb,
-          el("div", { class: "q-name" }, el("span", { class: "fname", title: q.file.name, text: q.file.name }), el("small", { text: LR.fmtSize(q.file.size) + (q.driveName ? `・雲端 ${q.driveName}` : "") })),
+          el("div", { class: "q-name" }, el("span", { class: "fname", title: q.file.name, text: q.file.name }), el("small", { text: LR.fmtSize(q.file.size) + (q.driveName ? `，雲端 ${q.driveName}` : "") })),
           badge, rm),
         el("div", { class: "q-fields" }, lab, spk));
       q.li = li;
@@ -1188,7 +1184,9 @@
     });
     $("recogResult").replaceChildren(
       el("div", { class: "recog-top" },
-        el("div", null, el("div", { class: "eyebrow", text: "辨識結果" }), el("div", { class: "recog-word", text: top.label })),
+        el("div", { class: "recog-say" }, el("small", { text: "看起來是" }),
+          // 子集字型沒收的字：整句改用黑體，不要一句混兩種字
+          el("div", { class: "recog-word" + ([...top.label].every((c) => KAI.has(c)) ? "" : " sans"), text: top.label })),
         el("button", { class: "btn", type: "button", onclick: () => speak(top.label) }, LR.icon("speaker", 16), "唸出來")),
       el("ol", { class: "rank", "aria-label": "最像的前幾名" }, rows),
       el("p", { class: "help", text: "長條越長代表越接近第一名；右邊數字是距離，越小越像。" }),

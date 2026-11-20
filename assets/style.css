@@ -1134,3 +1134,37 @@ body.on-guide .col-side { display: none; }
   #gRepeatBtn { grid-column: 3; grid-row: 1; }
   .rec-board-wrap { max-height: calc(100svh - 96px); overflow: auto; position: sticky; top: 72px; border-radius: 12px; }
 }
+
+/* ═════════ 錄影頁的另外兩個分頁：上傳影片、辨識測試 ═════════
+ * 跟引導錄影同一套：不用卡片和陰影，用板子底色分區；主要按鈕是板岩墨，紅色只留給錄影 */
+.pg-record { --series-1: var(--ink); }
+.pg-record .card { box-shadow: none; }
+.rec-panel { min-width: 0; padding-top: 2px; }
+.rec-lede { color: var(--ink-2); font-size: 15px; max-width: 60ch; margin-bottom: 16px; }
+.pg-record .drop { background: var(--board); border-color: var(--line-strong); border-radius: 12px; }
+.pg-record .drop:hover, .pg-record .drop.drag { background: var(--board); border-color: var(--ink); }
+.pg-record .bulkbar { background: var(--board); border: 0; border-radius: 10px; }
+.pg-record .chip { border-radius: 6px; background: var(--surface); }
+.pg-record .chip:hover { border-color: var(--ink); color: var(--ink); }
+.pg-record .chip small { color: var(--ink-2); }
+.pg-record .qitem { border-radius: 8px; }
+.pg-record .qitem.sel { background: var(--surface); border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.pg-record .q-head input[type=checkbox] { accent-color: var(--ink); }
+/* 辨識結果：跟鏡頭下的字幕條一樣，用楷體大字 */
+.pg-record .recog-result { border-top: 0; padding-top: 0; }
+.pg-record .recog-top { align-items: stretch; }
+.recog-say { flex: 1 1 240px; background: var(--strip); color: var(--on-strip); border-radius: 14px; padding: 12px 18px 16px; }
+.recog-say small { display: block; font-size: 13px; color: color-mix(in srgb, var(--on-strip) 80%, var(--strip)); }
+.pg-record .recog-word { font: 400 clamp(40px, 9vw, 60px) / 1.15 var(--kai); letter-spacing: .06em; overflow-wrap: anywhere; }
+.pg-record .recog-word.sans { font-family: var(--font); font-weight: 700; letter-spacing: .02em; }
+.pg-record .recog-top .btn { align-self: center; }
+.pg-record .feedback { background: var(--board); border-radius: 12px; }
+/* 右欄（口型追蹤、最近上傳）：板子底色，不是浮起來的卡片 */
+.pg-record .col-side .card { background: var(--board); border: 0; border-radius: 12px; padding: 16px; }
+.pg-record .col-side .card-h h2 { font-size: 16px; }
+.pg-record .stage { background: var(--cam-bg); border-radius: 10px; }
+.pg-record .stage-empty { color: #c3ccd1; }
+.pg-record .meter { background: var(--surface); }
+.pg-record .meter-bar { background: var(--ink); }
+.pg-record .stats div { background: var(--surface); }
+.pg-record .col-side .recent li { border-top-color: var(--line-strong); }
